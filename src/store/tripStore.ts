@@ -1,69 +1,45 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { v4 as uuidv4 } from 'uuid';
 import type {
   User,
   Trip,
   Idea,
   Comment,
-  Vote,
   CanvasType,
-  Canvas,
   TripStatus,
   CardStatus,
   Activity,
-  ActivityType,
-  TripMember,
-  BoardSettings,
 } from '../types';
-import { CANVAS_CONFIG } from '../types';
-
-// Helper to generate avatar colors
-const AVATAR_COLORS = [
-  '#f87171', '#fb923c', '#fbbf24', '#a3e635', '#4ade80',
-  '#2dd4bf', '#38bdf8', '#818cf8', '#c084fc', '#f472b6',
-];
-
-const getRandomColor = () => AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
-
-// Default board settings
-const createDefaultBoardSettings = (canvasType: CanvasType): BoardSettings => ({
-  votes_per_user: CANVAS_CONFIG[canvasType].defaultVotesPerUser,
-  is_locked: false,
-});
-
-// Initial canvas state
-const createEmptyCanvases = (tripId: string): Record<CanvasType, Canvas> => ({
-  dates: { type: 'dates', trip_id: tripId, ideas: [], settings: createDefaultBoardSettings('dates') },
-  location: { type: 'location', trip_id: tripId, ideas: [], settings: createDefaultBoardSettings('location') },
-  accommodation: { type: 'accommodation', trip_id: tripId, ideas: [], settings: createDefaultBoardSettings('accommodation') },
-  activities: { type: 'activities', trip_id: tripId, ideas: [], settings: createDefaultBoardSettings('activities') },
-  food: { type: 'food', trip_id: tripId, ideas: [], settings: createDefaultBoardSettings('food') },
-  transportation: { type: 'transportation', trip_id: tripId, ideas: [], settings: createDefaultBoardSettings('transportation') },
-});
+import * as firestoreService from '../lib/firestore';
 
 interface TripState {
   // Current user
   currentUser: User | null;
+  isAuthLoading: boolean;
 
   // Data
   users: Record<string, User>;
   trips: Record<string, Trip>;
+  activeSubscriptions: Map<string, () => void>;
 
   // UI State
   activeTripId: string | null;
   activeCanvas: CanvasType;
 
   // User actions
-  setCurrentUser: (user: User) => void;
-  createUser: (name: string, email: string) => User;
+  setCurrentUser: (user: User | null) => void;
+  setAuthLoading: (loading: boolean) => void;
+  addUser: (user: User) => void;
 
   // Trip actions
-  createTrip: (name: string, description: string, coverImage?: string) => Trip;
-  joinTrip: (inviteCode: string) => Trip | null;
+  createTrip: (name: string, description: string, coverImage?: string) => Promise<Trip | null>;
+  joinTrip: (inviteCode: string) => Promise<Trip | null>;
   setActiveTrip: (tripId: string | null) => void;
   setActiveCanvas: (canvas: CanvasType) => void;
-  updateTripStatus: (tripId: string, status: TripStatus) => void;
+  updateTripStatus: (tripId: string, status: TripStatus) => Promise<void>;
+  subscribeToTrip: (tripId: string) => void;
+  subscribeToUserTrips: () => void;
+  unsubscribeFromTrip: (tripId: string) => void;
+  unsubscribeFromAll: () => void;
 
   // Permission helpers
   isOwner: (tripId: string) => boolean;
@@ -71,27 +47,24 @@ interface TripState {
   canVote: (tripId: string) => boolean;
 
   // Idea actions
-  addIdea: (tripId: string, canvas: CanvasType, idea: Omit<Idea, 'id' | 'trip_id' | 'canvas_type' | 'created_at' | 'votes' | 'comments' | 'status'>) => Idea | null;
-  deleteIdea: (tripId: string, canvas: CanvasType, ideaId: string) => void;
-  updateIdeaStatus: (tripId: string, canvas: CanvasType, ideaId: string, status: CardStatus) => void;
+  addIdea: (tripId: string, canvas: CanvasType, idea: Omit<Idea, 'id' | 'trip_id' | 'canvas_type' | 'created_at' | 'votes' | 'comments' | 'status'>) => Promise<Idea | null>;
+  deleteIdea: (tripId: string, canvas: CanvasType, ideaId: string) => Promise<void>;
+  updateIdeaStatus: (tripId: string, canvas: CanvasType, ideaId: string, status: CardStatus) => Promise<void>;
 
   // Voting actions
-  voteOnIdea: (tripId: string, canvas: CanvasType, ideaId: string, value: 1 | -1) => boolean;
-  removeVote: (tripId: string, canvas: CanvasType, ideaId: string) => void;
+  voteOnIdea: (tripId: string, canvas: CanvasType, ideaId: string, value: 1 | -1) => Promise<boolean>;
+  removeVote: (tripId: string, canvas: CanvasType, ideaId: string) => Promise<void>;
   getUserVotesRemaining: (tripId: string, canvas: CanvasType) => number;
 
   // Comment actions
-  addComment: (tripId: string, canvas: CanvasType, ideaId: string, content: string) => Comment | null;
-  deleteComment: (tripId: string, canvas: CanvasType, ideaId: string, commentId: string) => void;
+  addComment: (tripId: string, canvas: CanvasType, ideaId: string, content: string) => Promise<Comment | null>;
+  deleteComment: (tripId: string, canvas: CanvasType, ideaId: string, commentId: string) => Promise<void>;
 
   // Board actions
-  lockBoard: (tripId: string, canvas: CanvasType) => void;
-  unlockBoard: (tripId: string, canvas: CanvasType) => void;
-  selectIdea: (tripId: string, canvas: CanvasType, ideaId: string) => void;
-  unselectIdea: (tripId: string, canvas: CanvasType) => void;
-
-  // Activity actions
-  addActivity: (tripId: string, type: ActivityType, message: string, targetId?: string, targetType?: string) => void;
+  lockBoard: (tripId: string, canvas: CanvasType) => Promise<void>;
+  unlockBoard: (tripId: string, canvas: CanvasType) => Promise<void>;
+  selectIdea: (tripId: string, canvas: CanvasType, ideaId: string) => Promise<void>;
+  unselectIdea: (tripId: string, canvas: CanvasType) => Promise<void>;
 
   // Helper functions
   getVoteScore: (idea: Idea) => number;
@@ -106,785 +79,416 @@ interface TripState {
     transportation?: Idea;
   } | null;
   getTripActivities: (tripId: string, limit?: number) => Activity[];
-  getMemberInfo: (tripId: string, userId: string) => { user: User; member: TripMember } | null;
 }
 
-export const useTripStore = create<TripState>()(
-  persist(
-    (set, get) => ({
-      currentUser: null,
-      users: {},
-      trips: {},
-      activeTripId: null,
-      activeCanvas: 'dates',
-
-      setCurrentUser: (user) => set({ currentUser: user }),
-
-      createUser: (name, email) => {
-        const user: User = {
-          id: uuidv4(),
-          name,
-          email,
-          avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`,
-          color: getRandomColor(),
-        };
-        set((state) => ({
-          users: { ...state.users, [user.id]: user },
-          currentUser: user,
-        }));
-        return user;
-      },
-
-      createTrip: (name, description, coverImage) => {
-        const { currentUser } = get();
-        if (!currentUser) throw new Error('Must be logged in to create a trip');
-
-        const tripId = uuidv4();
-        const trip: Trip = {
-          id: tripId,
-          name,
-          description,
-          cover_image: coverImage,
-          owner_id: currentUser.id,
-          created_at: new Date(),
-          members: [{
-            user_id: currentUser.id,
-            role: 'owner',
-            joined_at: new Date(),
-          }],
-          canvases: createEmptyCanvases(tripId),
-          status: 'ideation',
-          invite_code: uuidv4().slice(0, 8).toUpperCase(),
-          activities: [],
-        };
-
-        // Add creation activity
-        const activity: Activity = {
-          id: uuidv4(),
-          trip_id: tripId,
-          type: 'trip_created',
-          user_id: currentUser.id,
-          message: `${currentUser.name} created the trip "${name}"`,
-          timestamp: new Date(),
-        };
-        trip.activities.push(activity);
-
-        set((state) => ({
-          trips: { ...state.trips, [trip.id]: trip },
-          activeTripId: trip.id,
-        }));
-
-        return trip;
-      },
-
-      joinTrip: (inviteCode) => {
-        const { currentUser, trips } = get();
-        if (!currentUser) return null;
-
-        const trip = Object.values(trips).find(
-          (t) => t.invite_code === inviteCode.toUpperCase()
-        );
-
-        if (!trip) return null;
-
-        // Already a member
-        if (trip.members.some((m) => m.user_id === currentUser.id)) {
-          set({ activeTripId: trip.id });
-          return trip;
-        }
-
-        const newMember: TripMember = {
-          user_id: currentUser.id,
-          role: 'participant',
-          joined_at: new Date(),
-        };
-
-        const activity: Activity = {
-          id: uuidv4(),
-          trip_id: trip.id,
-          type: 'member_joined',
-          user_id: currentUser.id,
-          message: `${currentUser.name} joined the trip`,
-          timestamp: new Date(),
-        };
-
-        set((state) => ({
-          trips: {
-            ...state.trips,
-            [trip.id]: {
-              ...trip,
-              members: [...trip.members, newMember],
-              activities: [...trip.activities, activity],
-            },
-          },
-          activeTripId: trip.id,
-        }));
-
-        return trip;
-      },
-
-      setActiveTrip: (tripId) => set({ activeTripId: tripId }),
-      setActiveCanvas: (canvas) => set({ activeCanvas: canvas }),
-
-      updateTripStatus: (tripId, status) => {
-        const { trips, currentUser, isOwner } = get();
-        const trip = trips[tripId];
-        if (!trip || !currentUser) return;
-
-        // Only owner can change status
-        if (!isOwner(tripId)) return;
-
-        const activity: Activity = {
-          id: uuidv4(),
-          trip_id: tripId,
-          type: 'status_changed',
-          user_id: currentUser.id,
-          message: `${currentUser.name} changed trip status to ${status}`,
-          timestamp: new Date(),
-        };
-
-        set((state) => ({
-          trips: {
-            ...state.trips,
-            [tripId]: {
-              ...trip,
-              status,
-              activities: [...trip.activities, activity],
-            },
-          },
-        }));
-      },
-
-      isOwner: (tripId) => {
-        const { currentUser, trips } = get();
-        if (!currentUser) return false;
-        const trip = trips[tripId];
-        return trip?.owner_id === currentUser.id;
-      },
-
-      canEdit: (tripId, canvas) => {
-        const { trips } = get();
-        const trip = trips[tripId];
-        if (!trip) return false;
-
-        // Can't edit if board is locked
-        if (trip.canvases[canvas].settings.is_locked) return false;
-
-        // Can't add ideas in finalized state
-        if (trip.status === 'finalized') return false;
-
-        return true;
-      },
-
-      canVote: (tripId) => {
-        const { trips } = get();
-        const trip = trips[tripId];
-        if (!trip) return false;
-
-        // Can vote in ideation or voting phase
-        return trip.status === 'ideation' || trip.status === 'voting';
-      },
-
-      addIdea: (tripId, canvas, ideaData) => {
-        const { currentUser, trips, canEdit } = get();
-        if (!currentUser) return null;
-
-        const trip = trips[tripId];
-        if (!trip) return null;
-
-        // Check if can edit
-        if (!canEdit(tripId, canvas)) return null;
-
-        const idea: Idea = {
-          ...ideaData,
-          id: uuidv4(),
-          trip_id: tripId,
-          canvas_type: canvas,
-          created_at: new Date(),
-          votes: [],
-          comments: [],
-          status: 'open',
-        };
-
-        const activity: Activity = {
-          id: uuidv4(),
-          trip_id: tripId,
-          type: 'idea_added',
-          user_id: currentUser.id,
-          target_id: idea.id,
-          target_type: canvas,
-          message: `${currentUser.name} added "${idea.title}" to ${CANVAS_CONFIG[canvas].label}`,
-          timestamp: new Date(),
-        };
-
-        set((state) => ({
-          trips: {
-            ...state.trips,
-            [tripId]: {
-              ...trip,
-              canvases: {
-                ...trip.canvases,
-                [canvas]: {
-                  ...trip.canvases[canvas],
-                  ideas: [...trip.canvases[canvas].ideas, idea],
-                },
-              },
-              activities: [...trip.activities, activity],
-            },
-          },
-        }));
-
-        return idea;
-      },
-
-      deleteIdea: (tripId, canvas, ideaId) => {
-        const { trips, currentUser, isOwner } = get();
-        const trip = trips[tripId];
-        if (!trip || !currentUser) return;
-
-        const idea = trip.canvases[canvas].ideas.find((i) => i.id === ideaId);
-        if (!idea) return;
-
-        // Only owner or idea creator can delete
-        if (!isOwner(tripId) && idea.created_by !== currentUser.id) return;
-
-        set((state) => ({
-          trips: {
-            ...state.trips,
-            [tripId]: {
-              ...trip,
-              canvases: {
-                ...trip.canvases,
-                [canvas]: {
-                  ...trip.canvases[canvas],
-                  ideas: trip.canvases[canvas].ideas.filter((i) => i.id !== ideaId),
-                  selected_idea_id:
-                    trip.canvases[canvas].selected_idea_id === ideaId
-                      ? undefined
-                      : trip.canvases[canvas].selected_idea_id,
-                },
-              },
-            },
-          },
-        }));
-      },
-
-      updateIdeaStatus: (tripId, canvas, ideaId, status) => {
-        const { trips, currentUser, isOwner } = get();
-        const trip = trips[tripId];
-        if (!trip || !currentUser) return;
-
-        // Only owner can change idea status to shortlisted/selected
-        if (status !== 'open' && !isOwner(tripId)) return;
-
-        const ideaIndex = trip.canvases[canvas].ideas.findIndex((i) => i.id === ideaId);
-        if (ideaIndex === -1) return;
-
-        const idea = trip.canvases[canvas].ideas[ideaIndex];
-        const newIdeas = [...trip.canvases[canvas].ideas];
-        newIdeas[ideaIndex] = { ...idea, status };
-
-        const activityType: ActivityType = status === 'shortlisted' ? 'idea_shortlisted' : 'idea_selected';
-        const activity: Activity = {
-          id: uuidv4(),
-          trip_id: tripId,
-          type: activityType,
-          user_id: currentUser.id,
-          target_id: ideaId,
-          target_type: canvas,
-          message: `${currentUser.name} ${status === 'shortlisted' ? 'shortlisted' : 'selected'} "${idea.title}"`,
-          timestamp: new Date(),
-        };
-
-        set((state) => ({
-          trips: {
-            ...state.trips,
-            [tripId]: {
-              ...trip,
-              canvases: {
-                ...trip.canvases,
-                [canvas]: {
-                  ...trip.canvases[canvas],
-                  ideas: newIdeas,
-                },
-              },
-              activities: [...trip.activities, activity],
-            },
-          },
-        }));
-      },
-
-      voteOnIdea: (tripId, canvas, ideaId, value) => {
-        const { currentUser, trips, canVote, getUserVotesRemaining, getUserVote } = get();
-        if (!currentUser || !canVote(tripId)) return false;
-
-        const trip = trips[tripId];
-        if (!trip) return false;
-
-        // Check if board is locked
-        if (trip.canvases[canvas].settings.is_locked) return false;
-
-        const ideaIndex = trip.canvases[canvas].ideas.findIndex((i) => i.id === ideaId);
-        if (ideaIndex === -1) return false;
-
-        const idea = trip.canvases[canvas].ideas[ideaIndex];
-        const existingVote = getUserVote(idea, currentUser.id);
-
-        // If changing vote direction, allow it
-        // If new upvote, check remaining votes
-        if (value === 1 && existingVote !== 1) {
-          const remaining = getUserVotesRemaining(tripId, canvas);
-          if (remaining <= 0) return false;
-        }
-
-        const existingVoteIndex = idea.votes.findIndex((v) => v.user_id === currentUser.id);
-
-        let newVotes: Vote[];
-        if (existingVoteIndex !== -1) {
-          // Update existing vote
-          newVotes = idea.votes.map((v, idx) =>
-            idx === existingVoteIndex ? { ...v, value, timestamp: new Date() } : v
-          );
-        } else {
-          // Add new vote
-          newVotes = [
-            ...idea.votes,
-            { idea_id: ideaId, user_id: currentUser.id, value, timestamp: new Date() },
-          ];
-        }
-
-        const newIdeas = [...trip.canvases[canvas].ideas];
-        newIdeas[ideaIndex] = { ...idea, votes: newVotes };
-
-        const activity: Activity = {
-          id: uuidv4(),
-          trip_id: tripId,
-          type: 'idea_voted',
-          user_id: currentUser.id,
-          target_id: ideaId,
-          target_type: canvas,
-          message: `${currentUser.name} ${value === 1 ? 'upvoted' : 'downvoted'} "${idea.title}"`,
-          timestamp: new Date(),
-        };
-
-        set((state) => ({
-          trips: {
-            ...state.trips,
-            [tripId]: {
-              ...trip,
-              canvases: {
-                ...trip.canvases,
-                [canvas]: {
-                  ...trip.canvases[canvas],
-                  ideas: newIdeas,
-                },
-              },
-              activities: [...trip.activities, activity],
-            },
-          },
-        }));
-
-        return true;
-      },
-
-      removeVote: (tripId, canvas, ideaId) => {
-        const { currentUser, trips } = get();
-        if (!currentUser) return;
-
-        const trip = trips[tripId];
-        if (!trip) return;
-
-        const ideaIndex = trip.canvases[canvas].ideas.findIndex((i) => i.id === ideaId);
-        if (ideaIndex === -1) return;
-
-        const idea = trip.canvases[canvas].ideas[ideaIndex];
-        const newVotes = idea.votes.filter((v) => v.user_id !== currentUser.id);
-
-        const newIdeas = [...trip.canvases[canvas].ideas];
-        newIdeas[ideaIndex] = { ...idea, votes: newVotes };
-
-        set((state) => ({
-          trips: {
-            ...state.trips,
-            [tripId]: {
-              ...trip,
-              canvases: {
-                ...trip.canvases,
-                [canvas]: {
-                  ...trip.canvases[canvas],
-                  ideas: newIdeas,
-                },
-              },
-            },
-          },
-        }));
-      },
-
-      getUserVotesRemaining: (tripId, canvas) => {
-        const { currentUser, trips } = get();
-        if (!currentUser) return 0;
-
-        const trip = trips[tripId];
-        if (!trip) return 0;
-
-        const maxVotes = trip.canvases[canvas].settings.votes_per_user;
-        const usedVotes = trip.canvases[canvas].ideas.reduce((count, idea) => {
-          const userVote = idea.votes.find((v) => v.user_id === currentUser.id);
-          return count + (userVote && userVote.value === 1 ? 1 : 0);
-        }, 0);
-
-        return maxVotes - usedVotes;
-      },
-
-      addComment: (tripId, canvas, ideaId, content) => {
-        const { currentUser, trips } = get();
-        if (!currentUser) return null;
-
-        const trip = trips[tripId];
-        if (!trip) return null;
-
-        const ideaIndex = trip.canvases[canvas].ideas.findIndex((i) => i.id === ideaId);
-        if (ideaIndex === -1) return null;
-
-        const comment: Comment = {
-          id: uuidv4(),
-          idea_id: ideaId,
-          user_id: currentUser.id,
-          content,
-          timestamp: new Date(),
-        };
-
-        const idea = trip.canvases[canvas].ideas[ideaIndex];
-        const newIdeas = [...trip.canvases[canvas].ideas];
-        newIdeas[ideaIndex] = { ...idea, comments: [...idea.comments, comment] };
-
-        const activity: Activity = {
-          id: uuidv4(),
-          trip_id: tripId,
-          type: 'idea_commented',
-          user_id: currentUser.id,
-          target_id: ideaId,
-          target_type: canvas,
-          message: `${currentUser.name} commented on "${idea.title}"`,
-          timestamp: new Date(),
-        };
-
-        set((state) => ({
-          trips: {
-            ...state.trips,
-            [tripId]: {
-              ...trip,
-              canvases: {
-                ...trip.canvases,
-                [canvas]: {
-                  ...trip.canvases[canvas],
-                  ideas: newIdeas,
-                },
-              },
-              activities: [...trip.activities, activity],
-            },
-          },
-        }));
-
-        return comment;
-      },
-
-      deleteComment: (tripId, canvas, ideaId, commentId) => {
-        const { trips, currentUser, isOwner } = get();
-        const trip = trips[tripId];
-        if (!trip || !currentUser) return;
-
-        const ideaIndex = trip.canvases[canvas].ideas.findIndex((i) => i.id === ideaId);
-        if (ideaIndex === -1) return;
-
-        const idea = trip.canvases[canvas].ideas[ideaIndex];
-        const comment = idea.comments.find((c) => c.id === commentId);
-
-        // Only owner or comment author can delete
-        if (!comment || (!isOwner(tripId) && comment.user_id !== currentUser.id)) return;
-
-        const newIdeas = [...trip.canvases[canvas].ideas];
-        newIdeas[ideaIndex] = {
-          ...idea,
-          comments: idea.comments.filter((c) => c.id !== commentId),
-        };
-
-        set((state) => ({
-          trips: {
-            ...state.trips,
-            [tripId]: {
-              ...trip,
-              canvases: {
-                ...trip.canvases,
-                [canvas]: {
-                  ...trip.canvases[canvas],
-                  ideas: newIdeas,
-                },
-              },
-            },
-          },
-        }));
-      },
-
-      lockBoard: (tripId, canvas) => {
-        const { trips, currentUser, isOwner } = get();
-        const trip = trips[tripId];
-        if (!trip || !currentUser || !isOwner(tripId)) return;
-
-        const activity: Activity = {
-          id: uuidv4(),
-          trip_id: tripId,
-          type: 'board_locked',
-          user_id: currentUser.id,
-          target_type: canvas,
-          message: `${currentUser.name} locked the ${CANVAS_CONFIG[canvas].label} board`,
-          timestamp: new Date(),
-        };
-
-        set((state) => ({
-          trips: {
-            ...state.trips,
-            [tripId]: {
-              ...trip,
-              canvases: {
-                ...trip.canvases,
-                [canvas]: {
-                  ...trip.canvases[canvas],
-                  settings: {
-                    ...trip.canvases[canvas].settings,
-                    is_locked: true,
-                    locked_at: new Date(),
-                    locked_by: currentUser.id,
-                  },
-                },
-              },
-              activities: [...trip.activities, activity],
-            },
-          },
-        }));
-      },
-
-      unlockBoard: (tripId, canvas) => {
-        const { trips, currentUser, isOwner } = get();
-        const trip = trips[tripId];
-        if (!trip || !currentUser || !isOwner(tripId)) return;
-
-        set((state) => ({
-          trips: {
-            ...state.trips,
-            [tripId]: {
-              ...trip,
-              canvases: {
-                ...trip.canvases,
-                [canvas]: {
-                  ...trip.canvases[canvas],
-                  settings: {
-                    ...trip.canvases[canvas].settings,
-                    is_locked: false,
-                    locked_at: undefined,
-                    locked_by: undefined,
-                  },
-                },
-              },
-            },
-          },
-        }));
-      },
-
-      selectIdea: (tripId, canvas, ideaId) => {
-        const { trips, currentUser, isOwner, updateIdeaStatus } = get();
-        const trip = trips[tripId];
-        if (!trip || !currentUser || !isOwner(tripId)) return;
-
-        // Unselect previous selection
-        const previousSelectedId = trip.canvases[canvas].selected_idea_id;
-        if (previousSelectedId) {
-          const prevIdeaIndex = trip.canvases[canvas].ideas.findIndex((i) => i.id === previousSelectedId);
-          if (prevIdeaIndex !== -1) {
-            const newIdeas = [...trip.canvases[canvas].ideas];
-            newIdeas[prevIdeaIndex] = { ...newIdeas[prevIdeaIndex], status: 'open' };
-
-            set((state) => ({
-              trips: {
-                ...state.trips,
-                [tripId]: {
-                  ...state.trips[tripId],
-                  canvases: {
-                    ...state.trips[tripId].canvases,
-                    [canvas]: {
-                      ...state.trips[tripId].canvases[canvas],
-                      ideas: newIdeas,
-                    },
-                  },
-                },
-              },
-            }));
-          }
-        }
-
-        // Select new idea
-        updateIdeaStatus(tripId, canvas, ideaId, 'selected');
-
-        const updatedTrip = get().trips[tripId];
-        set((state) => ({
-          trips: {
-            ...state.trips,
-            [tripId]: {
-              ...updatedTrip,
-              canvases: {
-                ...updatedTrip.canvases,
-                [canvas]: {
-                  ...updatedTrip.canvases[canvas],
-                  selected_idea_id: ideaId,
-                },
-              },
-            },
-          },
-        }));
-      },
-
-      unselectIdea: (tripId, canvas) => {
-        const { trips, currentUser, isOwner } = get();
-        const trip = trips[tripId];
-        if (!trip || !currentUser || !isOwner(tripId)) return;
-
-        const selectedId = trip.canvases[canvas].selected_idea_id;
-        if (!selectedId) return;
-
-        const ideaIndex = trip.canvases[canvas].ideas.findIndex((i) => i.id === selectedId);
-        if (ideaIndex === -1) return;
-
-        const newIdeas = [...trip.canvases[canvas].ideas];
-        newIdeas[ideaIndex] = { ...newIdeas[ideaIndex], status: 'open' };
-
-        set((state) => ({
-          trips: {
-            ...state.trips,
-            [tripId]: {
-              ...trip,
-              canvases: {
-                ...trip.canvases,
-                [canvas]: {
-                  ...trip.canvases[canvas],
-                  ideas: newIdeas,
-                  selected_idea_id: undefined,
-                },
-              },
-            },
-          },
-        }));
-      },
-
-      addActivity: (tripId, type, message, targetId, targetType) => {
-        const { currentUser, trips } = get();
-        if (!currentUser) return;
-
-        const trip = trips[tripId];
-        if (!trip) return;
-
-        const activity: Activity = {
-          id: uuidv4(),
-          trip_id: tripId,
-          type,
-          user_id: currentUser.id,
-          target_id: targetId,
-          target_type: targetType,
-          message,
-          timestamp: new Date(),
-        };
-
-        set((state) => ({
-          trips: {
-            ...state.trips,
-            [tripId]: {
-              ...trip,
-              activities: [...trip.activities, activity],
-            },
-          },
-        }));
-      },
-
-      getVoteScore: (idea) => {
-        return idea.votes.reduce((sum, vote) => sum + vote.value, 0);
-      },
-
-      getUserVote: (idea, userId) => {
-        const vote = idea.votes.find((v) => v.user_id === userId);
-        return vote ? vote.value : null;
-      },
-
-      getIdeasSortedByVotes: (tripId, canvas) => {
-        const { trips, getVoteScore } = get();
-        const trip = trips[tripId];
-        if (!trip) return [];
-
-        return [...trip.canvases[canvas].ideas].sort((a, b) => {
-          // Selected first
-          if (a.status === 'selected' && b.status !== 'selected') return -1;
-          if (a.status !== 'selected' && b.status === 'selected') return 1;
-          // Then shortlisted
-          if (a.status === 'shortlisted' && b.status === 'open') return -1;
-          if (a.status === 'open' && b.status === 'shortlisted') return 1;
-          // Then by vote score
-          return getVoteScore(b) - getVoteScore(a);
-        });
-      },
-
-      getFinalPlan: (tripId) => {
-        const { trips } = get();
-        const trip = trips[tripId];
-        if (!trip) return null;
-
-        const getSelectedIdea = (canvas: CanvasType): Idea | undefined => {
-          const selectedId = trip.canvases[canvas].selected_idea_id;
-          return selectedId
-            ? trip.canvases[canvas].ideas.find((i) => i.id === selectedId)
-            : undefined;
-        };
-
-        const getSelectedIdeas = (canvas: CanvasType): Idea[] => {
-          return trip.canvases[canvas].ideas.filter((i) => i.status === 'selected');
-        };
-
-        return {
-          dates: getSelectedIdea('dates'),
-          location: getSelectedIdea('location'),
-          accommodation: getSelectedIdea('accommodation'),
-          activities: getSelectedIdeas('activities'),
-          food: getSelectedIdeas('food'),
-          transportation: getSelectedIdea('transportation'),
-        };
-      },
-
-      getTripActivities: (tripId, limit = 50) => {
-        const { trips } = get();
-        const trip = trips[tripId];
-        if (!trip) return [];
-
-        return [...trip.activities]
-          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-          .slice(0, limit);
-      },
-
-      getMemberInfo: (tripId, userId) => {
-        const { trips, users } = get();
-        const trip = trips[tripId];
-        if (!trip) return null;
-
-        const member = trip.members.find((m) => m.user_id === userId);
-        const user = users[userId];
-        if (!member || !user) return null;
-
-        return { user, member };
-      },
-    }),
-    {
-      name: 'tripboard-storage',
-      partialize: (state) => ({
-        currentUser: state.currentUser,
-        users: state.users,
-        trips: state.trips,
-      }),
+export const useTripStore = create<TripState>()((set, get) => ({
+  currentUser: null,
+  isAuthLoading: true,
+  users: {},
+  trips: {},
+  activeSubscriptions: new Map(),
+  activeTripId: null,
+  activeCanvas: 'dates',
+
+  setCurrentUser: (user) => {
+    set({ currentUser: user });
+    if (user) {
+      // Add user to local cache
+      set((state) => ({
+        users: { ...state.users, [user.id]: user },
+      }));
+      // Subscribe to user's trips
+      get().subscribeToUserTrips();
+    } else {
+      // Unsubscribe from all when logging out
+      get().unsubscribeFromAll();
+      set({ trips: {}, activeTripId: null });
     }
-  )
-);
+  },
+
+  setAuthLoading: (loading) => set({ isAuthLoading: loading }),
+
+  addUser: (user) => {
+    set((state) => ({
+      users: { ...state.users, [user.id]: user },
+    }));
+  },
+
+  createTrip: async (name, description, coverImage) => {
+    const { currentUser } = get();
+    if (!currentUser) return null;
+
+    try {
+      const trip = await firestoreService.createTrip(
+        name,
+        description,
+        currentUser.id,
+        currentUser.name,
+        coverImage
+      );
+
+      set((state) => ({
+        trips: { ...state.trips, [trip.id]: trip },
+        activeTripId: trip.id,
+      }));
+
+      // Subscribe to real-time updates
+      get().subscribeToTrip(trip.id);
+
+      return trip;
+    } catch (error) {
+      console.error('Error creating trip:', error);
+      return null;
+    }
+  },
+
+  joinTrip: async (inviteCode) => {
+    const { currentUser } = get();
+    if (!currentUser) return null;
+
+    try {
+      const trip = await firestoreService.getTripByInviteCode(inviteCode);
+      if (!trip) return null;
+
+      const updatedTrip = await firestoreService.joinTrip(
+        trip.id,
+        currentUser.id,
+        currentUser.name
+      );
+
+      if (updatedTrip) {
+        set((state) => ({
+          trips: { ...state.trips, [updatedTrip.id]: updatedTrip },
+          activeTripId: updatedTrip.id,
+        }));
+
+        // Subscribe to real-time updates
+        get().subscribeToTrip(updatedTrip.id);
+      }
+
+      return updatedTrip;
+    } catch (error) {
+      console.error('Error joining trip:', error);
+      return null;
+    }
+  },
+
+  setActiveTrip: (tripId) => {
+    set({ activeTripId: tripId });
+    if (tripId) {
+      get().subscribeToTrip(tripId);
+    }
+  },
+
+  setActiveCanvas: (canvas) => set({ activeCanvas: canvas }),
+
+  subscribeToTrip: (tripId) => {
+    const { activeSubscriptions } = get();
+
+    // Don't resubscribe if already subscribed
+    if (activeSubscriptions.has(tripId)) return;
+
+    const unsubscribe = firestoreService.subscribeToTrip(tripId, (trip) => {
+      if (trip) {
+        set((state) => ({
+          trips: { ...state.trips, [tripId]: trip },
+        }));
+      }
+    });
+
+    set((state) => {
+      const newSubscriptions = new Map(state.activeSubscriptions);
+      newSubscriptions.set(tripId, unsubscribe);
+      return { activeSubscriptions: newSubscriptions };
+    });
+  },
+
+  subscribeToUserTrips: () => {
+    const { currentUser, activeSubscriptions } = get();
+    if (!currentUser) return;
+
+    const subscriptionKey = `user_trips_${currentUser.id}`;
+    if (activeSubscriptions.has(subscriptionKey)) return;
+
+    const unsubscribe = firestoreService.subscribeToUserTrips(currentUser.id, (trips) => {
+      const tripsMap: Record<string, Trip> = {};
+      trips.forEach((trip) => {
+        tripsMap[trip.id] = trip;
+      });
+      set({ trips: tripsMap });
+    });
+
+    set((state) => {
+      const newSubscriptions = new Map(state.activeSubscriptions);
+      newSubscriptions.set(subscriptionKey, unsubscribe);
+      return { activeSubscriptions: newSubscriptions };
+    });
+  },
+
+  unsubscribeFromTrip: (tripId) => {
+    const { activeSubscriptions } = get();
+    const unsubscribe = activeSubscriptions.get(tripId);
+    if (unsubscribe) {
+      unsubscribe();
+      set((state) => {
+        const newSubscriptions = new Map(state.activeSubscriptions);
+        newSubscriptions.delete(tripId);
+        return { activeSubscriptions: newSubscriptions };
+      });
+    }
+  },
+
+  unsubscribeFromAll: () => {
+    const { activeSubscriptions } = get();
+    activeSubscriptions.forEach((unsubscribe) => unsubscribe());
+    set({ activeSubscriptions: new Map() });
+  },
+
+  updateTripStatus: async (tripId, status) => {
+    const { currentUser, isOwner } = get();
+    if (!currentUser || !isOwner(tripId)) return;
+
+    try {
+      await firestoreService.updateTripStatus(tripId, status, currentUser.id, currentUser.name);
+    } catch (error) {
+      console.error('Error updating trip status:', error);
+    }
+  },
+
+  isOwner: (tripId) => {
+    const { currentUser, trips } = get();
+    if (!currentUser) return false;
+    const trip = trips[tripId];
+    return trip?.owner_id === currentUser.id;
+  },
+
+  canEdit: (tripId, canvas) => {
+    const { trips } = get();
+    const trip = trips[tripId];
+    if (!trip) return false;
+    if (trip.canvases[canvas].settings.is_locked) return false;
+    if (trip.status === 'finalized') return false;
+    return true;
+  },
+
+  canVote: (tripId) => {
+    const { trips } = get();
+    const trip = trips[tripId];
+    if (!trip) return false;
+    return trip.status === 'ideation' || trip.status === 'voting';
+  },
+
+  addIdea: async (tripId, canvas, ideaData) => {
+    const { currentUser, canEdit } = get();
+    if (!currentUser || !canEdit(tripId, canvas)) return null;
+
+    try {
+      return await firestoreService.addIdea(tripId, canvas, ideaData, currentUser.name);
+    } catch (error) {
+      console.error('Error adding idea:', error);
+      return null;
+    }
+  },
+
+  deleteIdea: async (tripId, canvas, ideaId) => {
+    const { currentUser, trips, isOwner } = get();
+    const trip = trips[tripId];
+    if (!trip || !currentUser) return;
+
+    const idea = trip.canvases[canvas].ideas.find((i) => i.id === ideaId);
+    if (!idea) return;
+
+    // Only owner or idea creator can delete
+    if (!isOwner(tripId) && idea.created_by !== currentUser.id) return;
+
+    try {
+      await firestoreService.deleteIdea(tripId, canvas, ideaId);
+    } catch (error) {
+      console.error('Error deleting idea:', error);
+    }
+  },
+
+  updateIdeaStatus: async (tripId, canvas, ideaId, status) => {
+    const { currentUser, isOwner } = get();
+    if (!currentUser) return;
+    if (status !== 'open' && !isOwner(tripId)) return;
+
+    try {
+      await firestoreService.updateIdeaStatus(tripId, canvas, ideaId, status, currentUser.id, currentUser.name);
+    } catch (error) {
+      console.error('Error updating idea status:', error);
+    }
+  },
+
+  voteOnIdea: async (tripId, canvas, ideaId, value) => {
+    const { currentUser, canVote } = get();
+    if (!currentUser || !canVote(tripId)) return false;
+
+    try {
+      return await firestoreService.voteOnIdea(tripId, canvas, ideaId, currentUser.id, currentUser.name, value);
+    } catch (error) {
+      console.error('Error voting:', error);
+      return false;
+    }
+  },
+
+  removeVote: async (tripId, canvas, ideaId) => {
+    const { currentUser } = get();
+    if (!currentUser) return;
+
+    try {
+      await firestoreService.removeVote(tripId, canvas, ideaId, currentUser.id);
+    } catch (error) {
+      console.error('Error removing vote:', error);
+    }
+  },
+
+  getUserVotesRemaining: (tripId, canvas) => {
+    const { currentUser, trips } = get();
+    if (!currentUser) return 0;
+
+    const trip = trips[tripId];
+    if (!trip) return 0;
+
+    const maxVotes = trip.canvases[canvas].settings.votes_per_user;
+    const usedVotes = trip.canvases[canvas].ideas.reduce((count, idea) => {
+      const userVote = idea.votes.find((v) => v.user_id === currentUser.id);
+      return count + (userVote && userVote.value === 1 ? 1 : 0);
+    }, 0);
+
+    return maxVotes - usedVotes;
+  },
+
+  addComment: async (tripId, canvas, ideaId, content) => {
+    const { currentUser } = get();
+    if (!currentUser) return null;
+
+    try {
+      return await firestoreService.addComment(tripId, canvas, ideaId, currentUser.id, currentUser.name, content);
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      return null;
+    }
+  },
+
+  deleteComment: async (tripId, canvas, ideaId, commentId) => {
+    const { trips, currentUser, isOwner } = get();
+    const trip = trips[tripId];
+    if (!trip || !currentUser) return;
+
+    const idea = trip.canvases[canvas].ideas.find((i) => i.id === ideaId);
+    if (!idea) return;
+
+    const comment = idea.comments.find((c) => c.id === commentId);
+    if (!comment || (!isOwner(tripId) && comment.user_id !== currentUser.id)) return;
+
+    try {
+      await firestoreService.deleteComment(tripId, canvas, ideaId, commentId);
+    } catch (error) {
+      console.error('Error deleting comment:', error);
+    }
+  },
+
+  lockBoard: async (tripId, canvas) => {
+    const { currentUser, isOwner } = get();
+    if (!currentUser || !isOwner(tripId)) return;
+
+    try {
+      await firestoreService.lockBoard(tripId, canvas, currentUser.id, currentUser.name);
+    } catch (error) {
+      console.error('Error locking board:', error);
+    }
+  },
+
+  unlockBoard: async (tripId, canvas) => {
+    const { isOwner } = get();
+    if (!isOwner(tripId)) return;
+
+    try {
+      await firestoreService.unlockBoard(tripId, canvas);
+    } catch (error) {
+      console.error('Error unlocking board:', error);
+    }
+  },
+
+  selectIdea: async (tripId, canvas, ideaId) => {
+    const { currentUser, isOwner } = get();
+    if (!currentUser || !isOwner(tripId)) return;
+
+    try {
+      await firestoreService.selectIdea(tripId, canvas, ideaId, currentUser.id, currentUser.name);
+    } catch (error) {
+      console.error('Error selecting idea:', error);
+    }
+  },
+
+  unselectIdea: async (tripId, canvas) => {
+    const { isOwner } = get();
+    if (!isOwner(tripId)) return;
+
+    try {
+      await firestoreService.unselectIdea(tripId, canvas);
+    } catch (error) {
+      console.error('Error unselecting idea:', error);
+    }
+  },
+
+  getVoteScore: (idea) => {
+    return idea.votes.reduce((sum, vote) => sum + vote.value, 0);
+  },
+
+  getUserVote: (idea, userId) => {
+    const vote = idea.votes.find((v) => v.user_id === userId);
+    return vote ? vote.value : null;
+  },
+
+  getIdeasSortedByVotes: (tripId, canvas) => {
+    const { trips, getVoteScore } = get();
+    const trip = trips[tripId];
+    if (!trip) return [];
+
+    return [...trip.canvases[canvas].ideas].sort((a, b) => {
+      if (a.status === 'selected' && b.status !== 'selected') return -1;
+      if (a.status !== 'selected' && b.status === 'selected') return 1;
+      if (a.status === 'shortlisted' && b.status === 'open') return -1;
+      if (a.status === 'open' && b.status === 'shortlisted') return 1;
+      return getVoteScore(b) - getVoteScore(a);
+    });
+  },
+
+  getFinalPlan: (tripId) => {
+    const { trips } = get();
+    const trip = trips[tripId];
+    if (!trip) return null;
+
+    const getSelectedIdea = (canvas: CanvasType): Idea | undefined => {
+      const selectedId = trip.canvases[canvas].selected_idea_id;
+      return selectedId
+        ? trip.canvases[canvas].ideas.find((i) => i.id === selectedId)
+        : undefined;
+    };
+
+    const getSelectedIdeas = (canvas: CanvasType): Idea[] => {
+      return trip.canvases[canvas].ideas.filter((i) => i.status === 'selected');
+    };
+
+    return {
+      dates: getSelectedIdea('dates'),
+      location: getSelectedIdea('location'),
+      accommodation: getSelectedIdea('accommodation'),
+      activities: getSelectedIdeas('activities'),
+      food: getSelectedIdeas('food'),
+      transportation: getSelectedIdea('transportation'),
+    };
+  },
+
+  getTripActivities: (tripId, limit = 50) => {
+    const { trips } = get();
+    const trip = trips[tripId];
+    if (!trip) return [];
+
+    return [...trip.activities]
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, limit);
+  },
+}));

@@ -50,20 +50,20 @@ export function TripsPage() {
     trip.members.some((m) => m.user_id === currentUser?.id)
   );
 
-  const handleCreateTrip = (e: React.FormEvent) => {
+  const handleCreateTrip = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tripName.trim()) return;
-    createTrip(tripName.trim(), tripDescription.trim(), coverImage);
+    await createTrip(tripName.trim(), tripDescription.trim(), coverImage);
     setTripName('');
     setTripDescription('');
     setCoverImage(COVER_IMAGES[0]);
     setShowCreateModal(false);
   };
 
-  const handleJoinTrip = (e: React.FormEvent) => {
+  const handleJoinTrip = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteCode.trim()) return;
-    const trip = joinTrip(inviteCode.trim());
+    const trip = await joinTrip(inviteCode.trim());
     if (trip) {
       setInviteCode('');
       setJoinError('');

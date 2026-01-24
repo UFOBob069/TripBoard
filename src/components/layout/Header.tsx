@@ -2,13 +2,19 @@ import { useState } from 'react';
 import { Map, LogOut, ChevronDown } from 'lucide-react';
 import { useTripStore } from '../../store/tripStore';
 import { Avatar } from '../common/Avatar';
+import { signOut } from '../../lib/auth';
 
 export function Header() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { currentUser, setCurrentUser } = useTripStore();
 
-  const handleLogout = () => {
-    setCurrentUser(null as any);
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      setCurrentUser(null);
+    } catch (error) {
+      console.error('Error signing out:', error);
+    }
     setShowUserMenu(false);
   };
 
