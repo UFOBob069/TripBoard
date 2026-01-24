@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Modal } from '../common/Modal';
-import type { CanvasType } from '../../types';
+import type { CanvasType, DateIdeaMetadata } from '../../types';
 import { CANVAS_CONFIG } from '../../types';
 import { useTripStore } from '../../store/tripStore';
 import {
@@ -10,8 +10,8 @@ import {
   Compass,
   Utensils,
   Plane,
-  Image,
   Link,
+  Loader2,
 } from 'lucide-react';
 
 interface AddIdeaModalProps {
@@ -30,44 +30,130 @@ const ICON_MAP = {
   Plane,
 };
 
-const PLACEHOLDER_IMAGES = [
-  'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400',
-  'https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=400',
-  'https://images.unsplash.com/photo-1530789253388-582c481c54b0?w=400',
-  'https://images.unsplash.com/photo-1493976040374-85c8e12f0c0e?w=400',
-  'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=400',
-  'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400',
-];
+// Placeholder images for different canvas types
+const PLACEHOLDER_IMAGES: Record<CanvasType, string[]> = {
+  dates: [],
+  location: [
+    'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=400',
+    'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=400',
+    'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=400',
+    'https://images.unsplash.com/photo-1518548419970-58e3b4079ab2?w=400',
+  ],
+  accommodation: [
+    'https://images.unsplash.com/photo-1566073771259-6a8506099945?w=400',
+    'https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=400',
+    'https://images.unsplash.com/photo-1582719508461-905c673771fd?w=400',
+    'https://images.unsplash.com/photo-1445019980597-93fa8acb246c?w=400',
+  ],
+  activities: [
+    'https://images.unsplash.com/photo-1533105079780-92b9be482077?w=400',
+    'https://images.unsplash.com/photo-1527631746610-bca00a040d60?w=400',
+    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=400',
+    'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=400',
+  ],
+  food: [
+    'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=400',
+    'https://images.unsplash.com/photo-1552566626-52f8b828add9?w=400',
+    'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=400',
+    'https://images.unsplash.com/photo-1424847651672-bf20a4b0982b?w=400',
+  ],
+  transportation: [
+    'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=400',
+    'https://images.unsplash.com/photo-1474487548417-781cb71495f3?w=400',
+    'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400',
+    'https://images.unsplash.com/photo-1503376780353-7e6692767b70?w=400',
+  ],
+};
 
 export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaModalProps) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [flexible, setFlexible] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [showImagePicker, setShowImagePicker] = useState(false);
 
   const { addIdea, currentUser } = useTripStore();
   const config = CANVAS_CONFIG[canvasType];
   const IconComponent = ICON_MAP[config.icon as keyof typeof ICON_MAP];
+  const isDateBoard = canvasType === 'dates';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !currentUser) return;
+    if (!currentUser) return;
 
-    addIdea(tripId, canvasType, {
-      title: title.trim(),
-      description: description.trim(),
-      image_url: imageUrl || undefined,
-      link_url: linkUrl || undefined,
-      created_by: currentUser.id,
-    });
+    if (isDateBoard) {
+      if (!startDate || !endDate) return;
+
+      const metadata: DateIdeaMetadata = {
+        start_date: startDate,
+        end_date: endDate,
+        flexible,
+      };
+
+      // Format title from dates
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const dateTitle = `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
+      addIdea(tripId, canvasType, {
+        title: dateTitle,
+        description: flexible ? 'Flexible dates' : description,
+        created_by: currentUser.id,
+        metadata,
+      });
+    } else {
+      if (!title.trim()) return;
+
+      addIdea(tripId, canvasType, {
+        title: title.trim(),
+        description: description.trim(),
+        image_url: imageUrl || undefined,
+        link_url: linkUrl || undefined,
+        created_by: currentUser.id,
+      });
+    }
 
     // Reset form
     setTitle('');
     setDescription('');
-    setImageUrl('');
     setLinkUrl('');
+    setImageUrl('');
+    setStartDate('');
+    setEndDate('');
+    setFlexible(false);
     onClose();
+  };
+
+  const handleUrlPaste = async () => {
+    if (!linkUrl) return;
+
+    setIsLoading(true);
+
+    // Simulate fetching Open Graph image from URL
+    // In a real app, you'd call a backend API to fetch OG metadata
+    setTimeout(() => {
+      // Use a placeholder image based on canvas type
+      const placeholders = PLACEHOLDER_IMAGES[canvasType];
+      if (placeholders.length > 0) {
+        setImageUrl(placeholders[Math.floor(Math.random() * placeholders.length)]);
+      }
+
+      // Auto-generate title from URL if empty
+      if (!title) {
+        try {
+          const url = new URL(linkUrl);
+          setTitle(url.hostname.replace('www.', ''));
+        } catch {
+          // Invalid URL, ignore
+        }
+      }
+
+      setIsLoading(false);
+    }, 500);
   };
 
   return (
@@ -88,111 +174,176 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
           </div>
         </div>
 
-        {/* Title */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Title <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="input-field"
-            placeholder="e.g., Beautiful beach resort in Bali"
-            required
-          />
-        </div>
+        {isDateBoard ? (
+          // Date-specific form
+          <>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Start Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="input-field"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  End Date <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  min={startDate}
+                  className="input-field"
+                  required
+                />
+              </div>
+            </div>
 
-        {/* Description */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Description
-          </label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="input-field min-h-[100px] resize-none"
-            placeholder="Add more details about your idea..."
-          />
-        </div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={flexible}
+                onChange={(e) => setFlexible(e.target.checked)}
+                className="w-4 h-4 text-primary-500 rounded"
+              />
+              <span className="text-sm text-gray-700">These dates are flexible</span>
+            </label>
 
-        {/* Image URL */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            <span className="flex items-center gap-2">
-              <Image size={16} />
-              Image URL
-            </span>
-          </label>
-          <div className="flex gap-2">
-            <input
-              type="url"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              className="input-field flex-1"
-              placeholder="https://example.com/image.jpg"
-            />
-            <button
-              type="button"
-              onClick={() => setShowImagePicker(!showImagePicker)}
-              className="btn-secondary text-sm"
-            >
-              Pick
-            </button>
-          </div>
-
-          {/* Image picker */}
-          {showImagePicker && (
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {PLACEHOLDER_IMAGES.map((url, idx) => (
+            {!flexible && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Notes (optional)
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="input-field min-h-[80px] resize-none"
+                  placeholder="Any reason for these dates? (e.g., long weekend, cheaper flights)"
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          // Standard form for other canvases
+          <>
+            {/* Link URL with auto-fetch */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <span className="flex items-center gap-2">
+                  <Link size={16} />
+                  Link (optional)
+                </span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  className="input-field flex-1"
+                  placeholder="https://booking.com/hotel..."
+                />
                 <button
-                  key={idx}
                   type="button"
-                  onClick={() => {
-                    setImageUrl(url);
-                    setShowImagePicker(false);
-                  }}
-                  className={`h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                    imageUrl === url ? 'border-primary-500' : 'border-transparent'
-                  }`}
+                  onClick={handleUrlPaste}
+                  disabled={!linkUrl || isLoading}
+                  className="btn-secondary text-sm flex items-center gap-2"
                 >
-                  <img src={url} alt="" className="w-full h-full object-cover" />
+                  {isLoading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    'Fetch'
+                  )}
                 </button>
-              ))}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Paste a link and click Fetch to auto-populate image
+              </p>
             </div>
-          )}
 
-          {/* Image preview */}
-          {imageUrl && (
-            <div className="mt-2 relative h-32 rounded-lg overflow-hidden">
-              <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
-              <button
-                type="button"
-                onClick={() => setImageUrl('')}
-                className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full hover:bg-black/70"
-              >
-                &times;
-              </button>
+            {/* Title */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Title <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="input-field"
+                placeholder={`e.g., ${canvasType === 'accommodation' ? 'Beautiful beach resort' : canvasType === 'food' ? 'Amazing local restaurant' : 'Exciting activity'}`}
+                required
+              />
             </div>
-          )}
-        </div>
 
-        {/* Link URL */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            <span className="flex items-center gap-2">
-              <Link size={16} />
-              Link URL
-            </span>
-          </label>
-          <input
-            type="url"
-            value={linkUrl}
-            onChange={(e) => setLinkUrl(e.target.value)}
-            className="input-field"
-            placeholder="https://booking.com/hotel..."
-          />
-        </div>
+            {/* Description */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Description
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="input-field min-h-[80px] resize-none"
+                placeholder="Add more details about your idea..."
+              />
+            </div>
+
+            {/* Image */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Image
+              </label>
+
+              {imageUrl ? (
+                <div className="relative h-40 rounded-lg overflow-hidden mb-2">
+                  <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => setImageUrl('')}
+                    className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70"
+                  >
+                    &times;
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowImagePicker(!showImagePicker)}
+                  className="w-full py-8 border-2 border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-primary-400 hover:text-primary-500 transition-colors"
+                >
+                  Click to choose an image
+                </button>
+              )}
+
+              {/* Image picker */}
+              {showImagePicker && PLACEHOLDER_IMAGES[canvasType].length > 0 && (
+                <div className="mt-2 grid grid-cols-4 gap-2">
+                  {PLACEHOLDER_IMAGES[canvasType].map((url, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setImageUrl(url);
+                        setShowImagePicker(false);
+                      }}
+                      className={`h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                        imageUrl === url ? 'border-primary-500' : 'border-transparent hover:border-gray-300'
+                      }`}
+                    >
+                      <img src={url} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-4">

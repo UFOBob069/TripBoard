@@ -7,6 +7,7 @@ import {
   Trash2,
   ExternalLink,
   Crown,
+  Star,
 } from 'lucide-react';
 import type { Idea, User } from '../../types';
 import { useTripStore } from '../../store/tripStore';
@@ -28,23 +29,31 @@ export function IdeaCard({ idea, users, onOpenDetail }: IdeaCardProps) {
     voteOnIdea,
     removeVote,
     addComment,
-    finalizeIdea,
-    unfinalizeIdea,
+    selectIdea,
+    unselectIdea,
+    updateIdeaStatus,
     deleteIdea,
     getVoteScore,
     getUserVote,
+    isOwner,
+    getUserVotesRemaining,
   } = useTripStore();
 
   const author = users[idea.created_by];
   const voteScore = getVoteScore(idea);
   const userVote = currentUser ? getUserVote(idea, currentUser.id) : null;
+  const canManage = isOwner(idea.trip_id);
+  const votesRemaining = getUserVotesRemaining(idea.trip_id, idea.canvas_type);
 
   const handleVote = (value: 1 | -1) => {
     if (!currentUser) return;
     if (userVote === value) {
       removeVote(idea.trip_id, idea.canvas_type, idea.id);
     } else {
-      voteOnIdea(idea.trip_id, idea.canvas_type, idea.id, value);
+      const success = voteOnIdea(idea.trip_id, idea.canvas_type, idea.id, value);
+      if (!success && value === 1) {
+        alert('No votes remaining on this board!');
+      }
     }
   };
 
@@ -55,11 +64,19 @@ export function IdeaCard({ idea, users, onOpenDetail }: IdeaCardProps) {
     setNewComment('');
   };
 
-  const handleFinalize = () => {
-    if (idea.is_finalized) {
-      unfinalizeIdea(idea.trip_id, idea.canvas_type);
+  const handleSelect = () => {
+    if (idea.status === 'selected') {
+      unselectIdea(idea.trip_id, idea.canvas_type);
     } else {
-      finalizeIdea(idea.trip_id, idea.canvas_type, idea.id);
+      selectIdea(idea.trip_id, idea.canvas_type, idea.id);
+    }
+  };
+
+  const handleShortlist = () => {
+    if (idea.status === 'shortlisted') {
+      updateIdeaStatus(idea.trip_id, idea.canvas_type, idea.id, 'open');
+    } else {
+      updateIdeaStatus(idea.trip_id, idea.canvas_type, idea.id, 'shortlisted');
     }
   };
 
@@ -69,17 +86,25 @@ export function IdeaCard({ idea, users, onOpenDetail }: IdeaCardProps) {
     }
   };
 
+  const getStatusStyles = () => {
+    if (idea.status === 'selected') return 'ring-2 ring-green-500 border-green-500';
+    if (idea.status === 'shortlisted') return 'ring-2 ring-yellow-400 border-yellow-400';
+    return '';
+  };
+
   return (
-    <div
-      className={`card-idea p-0 overflow-hidden ${
-        idea.is_finalized ? 'ring-2 ring-green-500 border-green-500' : ''
-      }`}
-    >
-      {/* Finalized banner */}
-      {idea.is_finalized && (
+    <div className={`card-idea p-0 overflow-hidden ${getStatusStyles()}`}>
+      {/* Status banner */}
+      {idea.status === 'selected' && (
         <div className="bg-green-500 text-white px-4 py-2 flex items-center gap-2">
           <Crown size={16} />
           <span className="text-sm font-medium">Selected Choice</span>
+        </div>
+      )}
+      {idea.status === 'shortlisted' && (
+        <div className="bg-yellow-400 text-yellow-900 px-4 py-2 flex items-center gap-2">
+          <Star size={16} />
+          <span className="text-sm font-medium">Shortlisted</span>
         </div>
       )}
 
@@ -161,6 +186,13 @@ export function IdeaCard({ idea, users, onOpenDetail }: IdeaCardProps) {
               <MessageCircle size={14} />
               <span>{idea.comments.length}</span>
             </button>
+
+            {/* Votes remaining indicator */}
+            {votesRemaining <= 2 && userVote !== 1 && (
+              <span className="text-xs text-gray-400" title="Upvotes remaining on this board">
+                {votesRemaining} left
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-1">
@@ -178,21 +210,38 @@ export function IdeaCard({ idea, users, onOpenDetail }: IdeaCardProps) {
               {voteScore}
             </span>
 
-            {/* Finalize button */}
-            <button
-              onClick={handleFinalize}
-              className={`p-2 rounded-full transition-colors ${
-                idea.is_finalized
-                  ? 'bg-green-500 text-white'
-                  : 'text-gray-400 hover:text-green-500 hover:bg-green-50'
-              }`}
-              title={idea.is_finalized ? 'Unselect' : 'Select this option'}
-            >
-              <Check size={16} />
-            </button>
+            {/* Shortlist button (owner only) */}
+            {canManage && (
+              <button
+                onClick={handleShortlist}
+                className={`p-2 rounded-full transition-colors ${
+                  idea.status === 'shortlisted'
+                    ? 'bg-yellow-400 text-yellow-900'
+                    : 'text-gray-400 hover:text-yellow-500 hover:bg-yellow-50'
+                }`}
+                title={idea.status === 'shortlisted' ? 'Remove from shortlist' : 'Add to shortlist'}
+              >
+                <Star size={16} />
+              </button>
+            )}
 
-            {/* Delete button (only for author) */}
-            {currentUser?.id === idea.created_by && (
+            {/* Select button (owner only) */}
+            {canManage && (
+              <button
+                onClick={handleSelect}
+                className={`p-2 rounded-full transition-colors ${
+                  idea.status === 'selected'
+                    ? 'bg-green-500 text-white'
+                    : 'text-gray-400 hover:text-green-500 hover:bg-green-50'
+                }`}
+                title={idea.status === 'selected' ? 'Unselect' : 'Select this option'}
+              >
+                <Check size={16} />
+              </button>
+            )}
+
+            {/* Delete button (only for author or owner) */}
+            {(currentUser?.id === idea.created_by || canManage) && (
               <button
                 onClick={handleDelete}
                 className="p-2 rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"

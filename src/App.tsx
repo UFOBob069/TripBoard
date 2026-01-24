@@ -1,11 +1,10 @@
 import { useTripStore } from './store/tripStore';
 import { LoginPage } from './pages/LoginPage';
-import { GroupsPage } from './pages/GroupsPage';
 import { TripsPage } from './pages/TripsPage';
 import { TripBoardPage } from './pages/TripBoardPage';
 
 function App() {
-  const { currentUser, activeGroupId, activeTripId } = useTripStore();
+  const { currentUser, activeTripId } = useTripStore();
 
   // Not logged in - show login page
   if (!currentUser) {
@@ -17,13 +16,8 @@ function App() {
     return <TripBoardPage />;
   }
 
-  // Logged in, viewing a specific group's trips
-  if (activeGroupId) {
-    return <TripsPage />;
-  }
-
-  // Logged in, viewing all groups
-  return <GroupsPage />;
+  // Logged in, viewing trips list
+  return <TripsPage />;
 }
 
 export default App;

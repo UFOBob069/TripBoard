@@ -7,6 +7,7 @@ import {
   ExternalLink,
   Crown,
   Send,
+  Star,
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import type { Idea, User } from '../../types';
@@ -28,10 +29,13 @@ export function IdeaDetailModal({ idea, users, onClose }: IdeaDetailModalProps) 
     voteOnIdea,
     removeVote,
     addComment,
-    finalizeIdea,
-    unfinalizeIdea,
+    selectIdea,
+    unselectIdea,
+    updateIdeaStatus,
     getVoteScore,
     getUserVote,
+    isOwner,
+    getUserVotesRemaining,
   } = useTripStore();
 
   if (!idea) return null;
@@ -39,13 +43,18 @@ export function IdeaDetailModal({ idea, users, onClose }: IdeaDetailModalProps) 
   const author = users[idea.created_by];
   const voteScore = getVoteScore(idea);
   const userVote = currentUser ? getUserVote(idea, currentUser.id) : null;
+  const canManage = isOwner(idea.trip_id);
+  const votesRemaining = getUserVotesRemaining(idea.trip_id, idea.canvas_type);
 
   const handleVote = (value: 1 | -1) => {
     if (!currentUser) return;
     if (userVote === value) {
       removeVote(idea.trip_id, idea.canvas_type, idea.id);
     } else {
-      voteOnIdea(idea.trip_id, idea.canvas_type, idea.id, value);
+      const success = voteOnIdea(idea.trip_id, idea.canvas_type, idea.id, value);
+      if (!success && value === 1) {
+        alert('No votes remaining on this board!');
+      }
     }
   };
 
@@ -56,22 +65,36 @@ export function IdeaDetailModal({ idea, users, onClose }: IdeaDetailModalProps) 
     setNewComment('');
   };
 
-  const handleFinalize = () => {
-    if (idea.is_finalized) {
-      unfinalizeIdea(idea.trip_id, idea.canvas_type);
+  const handleSelect = () => {
+    if (idea.status === 'selected') {
+      unselectIdea(idea.trip_id, idea.canvas_type);
     } else {
-      finalizeIdea(idea.trip_id, idea.canvas_type, idea.id);
+      selectIdea(idea.trip_id, idea.canvas_type, idea.id);
+    }
+  };
+
+  const handleShortlist = () => {
+    if (idea.status === 'shortlisted') {
+      updateIdeaStatus(idea.trip_id, idea.canvas_type, idea.id, 'open');
+    } else {
+      updateIdeaStatus(idea.trip_id, idea.canvas_type, idea.id, 'shortlisted');
     }
   };
 
   return (
     <Modal isOpen={!!idea} onClose={onClose} title="" size="xl">
       <div className="space-y-4">
-        {/* Finalized banner */}
-        {idea.is_finalized && (
+        {/* Status banner */}
+        {idea.status === 'selected' && (
           <div className="flex items-center gap-2 p-3 bg-green-100 text-green-800 rounded-lg">
             <Crown size={20} />
             <span className="font-medium">This is the selected choice</span>
+          </div>
+        )}
+        {idea.status === 'shortlisted' && (
+          <div className="flex items-center gap-2 p-3 bg-yellow-100 text-yellow-800 rounded-lg">
+            <Star size={20} />
+            <span className="font-medium">Shortlisted option</span>
           </div>
         )}
 
@@ -116,7 +139,7 @@ export function IdeaDetailModal({ idea, users, onClose }: IdeaDetailModalProps) 
         </div>
 
         {/* Voting section */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
             <button
               onClick={() => handleVote(1)}
@@ -154,19 +177,39 @@ export function IdeaDetailModal({ idea, users, onClose }: IdeaDetailModalProps) 
               Score: {voteScore > 0 ? '+' : ''}
               {voteScore}
             </div>
+
+            <span className="text-sm text-gray-500">
+              {votesRemaining} votes left
+            </span>
           </div>
 
-          <button
-            onClick={handleFinalize}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-              idea.is_finalized
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-green-100 hover:text-green-700'
-            }`}
-          >
-            <Check size={18} />
-            {idea.is_finalized ? 'Selected' : 'Select This Option'}
-          </button>
+          {canManage && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleShortlist}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  idea.status === 'shortlisted'
+                    ? 'bg-yellow-400 text-yellow-900'
+                    : 'bg-gray-100 text-gray-700 hover:bg-yellow-100 hover:text-yellow-700'
+                }`}
+              >
+                <Star size={18} />
+                {idea.status === 'shortlisted' ? 'Shortlisted' : 'Shortlist'}
+              </button>
+
+              <button
+                onClick={handleSelect}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+                  idea.status === 'selected'
+                    ? 'bg-green-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-green-100 hover:text-green-700'
+                }`}
+              >
+                <Check size={18} />
+                {idea.status === 'selected' ? 'Selected' : 'Select This Option'}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Comments section */}

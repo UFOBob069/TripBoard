@@ -261,17 +261,22 @@ export function FinalPlan({ tripId, users }: FinalPlanProps) {
         <div className="mt-8 p-4 bg-white rounded-xl border border-gray-200">
           <h3 className="font-semibold text-gray-800 mb-4">Trip Members</h3>
           <div className="flex flex-wrap gap-3">
-            {trip.members.map((memberId) => {
-              const member = users[memberId];
-              return member ? (
+            {trip.members.map((tripMember) => {
+              const user = users[tripMember.user_id];
+              return user ? (
                 <div
-                  key={memberId}
+                  key={tripMember.user_id}
                   className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg"
                 >
-                  <Avatar user={member} size="sm" />
+                  <Avatar user={user} size="sm" />
                   <span className="text-sm font-medium text-gray-700">
-                    {member.name}
+                    {user.name}
                   </span>
+                  {tripMember.role === 'owner' && (
+                    <span className="text-xs bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
+                      Owner
+                    </span>
+                  )}
                 </div>
               ) : null;
             })}

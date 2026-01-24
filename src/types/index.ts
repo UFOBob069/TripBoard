@@ -2,6 +2,23 @@
 
 export type CanvasType = 'dates' | 'location' | 'accommodation' | 'activities' | 'food' | 'transportation';
 
+export type TripStatus = 'ideation' | 'voting' | 'finalized';
+
+export type CardStatus = 'open' | 'shortlisted' | 'selected';
+
+export type UserRole = 'owner' | 'participant';
+
+export type ActivityType =
+  | 'trip_created'
+  | 'member_joined'
+  | 'idea_added'
+  | 'idea_voted'
+  | 'idea_commented'
+  | 'idea_shortlisted'
+  | 'idea_selected'
+  | 'board_locked'
+  | 'status_changed';
+
 export interface User {
   id: string;
   name: string;
@@ -10,8 +27,14 @@ export interface User {
   color: string;
 }
 
+export interface TripMember {
+  user_id: string;
+  role: UserRole;
+  joined_at: Date;
+}
+
 export interface Vote {
-  odea_id: string
+  idea_id: string;
   user_id: string;
   value: 1 | -1;
   timestamp: Date;
@@ -25,6 +48,18 @@ export interface Comment {
   timestamp: Date;
 }
 
+export interface Activity {
+  id: string;
+  trip_id: string;
+  type: ActivityType;
+  user_id: string;
+  target_id?: string; // idea_id, board_id, etc.
+  target_type?: string;
+  message: string;
+  timestamp: Date;
+}
+
+// Base idea interface
 export interface Idea {
   id: string;
   canvas_type: CanvasType;
@@ -37,15 +72,15 @@ export interface Idea {
   created_at: Date;
   votes: Vote[];
   comments: Comment[];
-  is_finalized: boolean;
+  status: CardStatus;
   metadata?: IdeaMetadata;
 }
 
 // Specific metadata for different canvas types
-export interface DateMetadata {
-  start_date?: string;
-  end_date?: string;
-  flexible?: boolean;
+export interface DateIdeaMetadata {
+  start_date: string;
+  end_date: string;
+  flexible: boolean;
 }
 
 export interface LocationMetadata {
@@ -84,18 +119,26 @@ export interface TransportationMetadata {
 }
 
 export type IdeaMetadata =
-  | DateMetadata
+  | DateIdeaMetadata
   | LocationMetadata
   | AccommodationMetadata
   | ActivityMetadata
   | FoodMetadata
   | TransportationMetadata;
 
+export interface BoardSettings {
+  votes_per_user: number;
+  is_locked: boolean;
+  locked_at?: Date;
+  locked_by?: string;
+}
+
 export interface Canvas {
   type: CanvasType;
   trip_id: string;
   ideas: Idea[];
-  finalized_idea_id?: string;
+  selected_idea_id?: string;
+  settings: BoardSettings;
 }
 
 export interface Trip {
@@ -103,22 +146,13 @@ export interface Trip {
   name: string;
   description: string;
   cover_image?: string;
-  created_by: string;
+  owner_id: string;
   created_at: Date;
-  members: string[];
+  members: TripMember[];
   canvases: Record<CanvasType, Canvas>;
-  is_finalized: boolean;
-}
-
-export interface Group {
-  id: string;
-  name: string;
-  description: string;
-  members: User[];
-  trips: string[];
-  created_by: string;
-  created_at: Date;
+  status: TripStatus;
   invite_code: string;
+  activities: Activity[];
 }
 
 export interface FinalPlan {
@@ -134,41 +168,78 @@ export interface FinalPlan {
 }
 
 // Canvas configuration for UI
-export const CANVAS_CONFIG: Record<CanvasType, { label: string; icon: string; description: string; color: string }> = {
+export const CANVAS_CONFIG: Record<CanvasType, {
+  label: string;
+  icon: string;
+  description: string;
+  color: string;
+  inputType: 'date' | 'url' | 'text';
+  defaultVotesPerUser: number;
+}> = {
   dates: {
     label: 'Dates',
     icon: 'Calendar',
     description: 'When should we go?',
     color: 'bg-blue-500',
+    inputType: 'date',
+    defaultVotesPerUser: 3,
   },
   location: {
     label: 'Destination',
     icon: 'MapPin',
     description: 'Where should we go?',
     color: 'bg-green-500',
+    inputType: 'url',
+    defaultVotesPerUser: 3,
   },
   accommodation: {
     label: 'Stay',
     icon: 'Home',
     description: 'Where should we stay?',
     color: 'bg-purple-500',
+    inputType: 'url',
+    defaultVotesPerUser: 3,
   },
   activities: {
     label: 'Activities',
     icon: 'Compass',
     description: 'What should we do?',
     color: 'bg-orange-500',
+    inputType: 'url',
+    defaultVotesPerUser: 5,
   },
   food: {
     label: 'Food & Dining',
     icon: 'Utensils',
     description: 'Where should we eat?',
     color: 'bg-red-500',
+    inputType: 'url',
+    defaultVotesPerUser: 5,
   },
   transportation: {
     label: 'Transportation',
     icon: 'Plane',
     description: 'How do we get there?',
     color: 'bg-cyan-500',
+    inputType: 'url',
+    defaultVotesPerUser: 3,
+  },
+};
+
+export const TRIP_STATUS_CONFIG: Record<TripStatus, { label: string; description: string; color: string }> = {
+  ideation: {
+    label: 'Brainstorming',
+    description: 'Collecting ideas from everyone',
+    color: 'bg-yellow-500',
+  },
+  voting: {
+    label: 'Voting',
+    description: 'Vote for your favorites',
+    color: 'bg-blue-500',
+  },
+  finalized: {
+    label: 'Finalized',
+    description: 'Trip plan is complete!',
+    color: 'bg-green-500',
   },
 };
