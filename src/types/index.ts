@@ -159,10 +159,10 @@ export interface FinalPlan {
   trip_id: string;
   dates?: Idea;
   location?: Idea;
-  accommodation?: Idea;
+  accommodation: Idea[];
   activities: Idea[];
   food: Idea[];
-  transportation?: Idea;
+  transportation: Idea[];
   total_estimated_cost?: number;
   notes?: string;
 }

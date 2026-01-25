@@ -1,10 +1,17 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTripStore } from './store/tripStore';
 import { LoginPage } from './pages/LoginPage';
 import { TripsPage } from './pages/TripsPage';
 import { TripBoardPage } from './pages/TripBoardPage';
 import { subscribeToAuthChanges } from './lib/auth';
 import { Map } from 'lucide-react';
+
+// Parse invite code from URL path (e.g., /join/ABCD1234)
+function getInviteCodeFromUrl(): string | null {
+  const path = window.location.pathname;
+  const match = path.match(/^\/join\/([A-Z0-9]{8})$/i);
+  return match ? match[1].toUpperCase() : null;
+}
 
 function LoadingScreen() {
   return (
@@ -14,7 +21,7 @@ function LoadingScreen() {
           <div className="p-3 bg-white/20 backdrop-blur rounded-xl">
             <Map size={32} className="text-white" />
           </div>
-          <h1 className="text-3xl font-bold">TripBoard</h1>
+          <h1 className="text-3xl font-bold">TripBord</h1>
         </div>
         <div className="w-8 h-8 border-3 border-white/30 border-t-white rounded-full animate-spin mx-auto" />
       </div>
@@ -23,7 +30,19 @@ function LoadingScreen() {
 }
 
 function App() {
-  const { currentUser, isAuthLoading, activeTripId, setCurrentUser, setAuthLoading } = useTripStore();
+  const { currentUser, isAuthLoading, activeTripId, setCurrentUser, setAuthLoading, joinTrip } = useTripStore();
+  const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
+  const [joiningTrip, setJoiningTrip] = useState(false);
+
+  useEffect(() => {
+    // Check for invite code in URL on mount
+    const inviteCode = getInviteCodeFromUrl();
+    if (inviteCode) {
+      setPendingInviteCode(inviteCode);
+      // Clear the URL to prevent re-processing on refresh
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
 
   useEffect(() => {
     // Subscribe to Firebase auth state changes
@@ -35,14 +54,33 @@ function App() {
     return () => unsubscribe();
   }, [setCurrentUser, setAuthLoading]);
 
+  // Auto-join trip if there's a pending invite code and user is logged in
+  useEffect(() => {
+    if (pendingInviteCode && currentUser && !joiningTrip) {
+      setJoiningTrip(true);
+      joinTrip(pendingInviteCode).then((trip) => {
+        setPendingInviteCode(null);
+        setJoiningTrip(false);
+        if (!trip) {
+          alert('Invalid invite code or trip not found.');
+        }
+      });
+    }
+  }, [pendingInviteCode, currentUser, joiningTrip, joinTrip]);
+
   // Still checking auth state
   if (isAuthLoading) {
     return <LoadingScreen />;
   }
 
-  // Not logged in - show login page
+  // Not logged in - show login page (will auto-join after login if invite code is pending)
   if (!currentUser) {
-    return <LoginPage />;
+    return <LoginPage inviteCode={pendingInviteCode} />;
+  }
+
+  // Joining trip from invite link
+  if (joiningTrip) {
+    return <LoadingScreen />;
   }
 
   // Logged in, viewing a specific trip

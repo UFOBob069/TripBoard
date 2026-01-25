@@ -27,7 +27,7 @@ export function Header() {
             <Map size={20} className="text-white sm:w-6 sm:h-6" />
           </div>
           <div>
-            <h1 className="text-lg sm:text-xl font-bold text-gray-800">TripBoard</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-gray-800">TripBord</h1>
             <p className="text-xs text-gray-500 hidden sm:block">Plan together, travel together</p>
           </div>
         </div>

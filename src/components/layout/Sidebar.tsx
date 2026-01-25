@@ -15,6 +15,8 @@ import {
   ChevronDown,
   ChevronUp,
   Activity,
+  Share2,
+  Link2,
 } from 'lucide-react';
 import type { CanvasType, TripStatus } from '../../types';
 import { CANVAS_CONFIG, TRIP_STATUS_CONFIG } from '../../types';
@@ -40,6 +42,7 @@ interface SidebarProps {
 export function Sidebar({ onShowFinalPlan, showingFinalPlan, onBack, onCanvasSelect }: SidebarProps) {
   const [showActivity, setShowActivity] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const {
     activeCanvas,
@@ -74,11 +77,46 @@ export function Sidebar({ onShowFinalPlan, showingFinalPlan, onBack, onCanvasSel
 
   const allSelected = canvasTypes.every((c) => getCanvasStatus(c).selected);
 
+  const getInviteLink = () => {
+    if (!trip) return '';
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/join/${trip.invite_code}`;
+  };
+
   const copyInviteCode = () => {
     if (!trip) return;
     navigator.clipboard.writeText(trip.invite_code);
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const copyInviteLink = () => {
+    if (!trip) return;
+    navigator.clipboard.writeText(getInviteLink());
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
+
+  const shareInvite = async () => {
+    if (!trip) return;
+    const inviteLink = getInviteLink();
+    const shareData = {
+      title: `Join ${trip.name} on TripBord`,
+      text: `You're invited to plan a trip together! Join "${trip.name}" on TripBord.`,
+      url: inviteLink,
+    };
+
+    if (navigator.share && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        // User cancelled or error, fallback to copy
+        copyInviteLink();
+      }
+    } else {
+      // Fallback to copy link
+      copyInviteLink();
+    }
   };
 
   const handleStatusChange = (status: TripStatus) => {
@@ -142,21 +180,51 @@ export function Sidebar({ onShowFinalPlan, showingFinalPlan, onBack, onCanvasSel
             </div>
           )}
 
-          {/* Invite code */}
-          <button
-            onClick={copyInviteCode}
-            className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-          >
-            <div className="text-left">
-              <p className="text-xs text-gray-500">Invite Code</p>
-              <p className="font-mono font-medium text-gray-700">{trip.invite_code}</p>
-            </div>
-            {copiedCode ? (
-              <Check size={16} className="text-green-500" />
-            ) : (
-              <Copy size={16} className="text-gray-400" />
-            )}
-          </button>
+          {/* Invite section */}
+          <div className="space-y-2">
+            <p className="text-xs text-gray-500">Invite Friends</p>
+
+            {/* Share button - primary action */}
+            <button
+              onClick={shareInvite}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-primary-500 text-white rounded-lg hover:bg-primary-600 transition-colors"
+            >
+              <Share2 size={16} />
+              <span className="font-medium">Share Invite Link</span>
+            </button>
+
+            {/* Copy link option */}
+            <button
+              onClick={copyInviteLink}
+              className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <div className="flex items-center gap-2 text-left min-w-0">
+                <Link2 size={14} className="text-gray-400 flex-shrink-0" />
+                <span className="text-xs text-gray-500 truncate">{getInviteLink()}</span>
+              </div>
+              {copiedLink ? (
+                <Check size={14} className="text-green-500 flex-shrink-0" />
+              ) : (
+                <Copy size={14} className="text-gray-400 flex-shrink-0" />
+              )}
+            </button>
+
+            {/* Invite code fallback */}
+            <button
+              onClick={copyInviteCode}
+              className="w-full flex items-center justify-between px-3 py-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+            >
+              <div className="text-left">
+                <p className="text-xs text-gray-400">or share code</p>
+                <p className="font-mono font-medium text-gray-700">{trip.invite_code}</p>
+              </div>
+              {copiedCode ? (
+                <Check size={16} className="text-green-500" />
+              ) : (
+                <Copy size={16} className="text-gray-400" />
+              )}
+            </button>
+          </div>
         </div>
       )}
 

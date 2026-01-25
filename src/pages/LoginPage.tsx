@@ -23,7 +23,11 @@ import {
 import { useTripStore } from '../store/tripStore';
 import { signUpWithEmail, signInWithEmail, signInWithGoogle } from '../lib/auth';
 
-export function LoginPage() {
+interface LoginPageProps {
+  inviteCode?: string | null;
+}
+
+export function LoginPage({ inviteCode }: LoginPageProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -167,7 +171,7 @@ export function LoginPage() {
                 <Map size={28} className="text-white sm:w-8 sm:h-8" />
               </div>
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold">TripBoard</h1>
+                <h1 className="text-2xl sm:text-3xl font-bold">TripBord</h1>
                 <p className="text-white/80 text-sm sm:text-base">Plan together, travel together</p>
               </div>
             </div>
@@ -178,7 +182,7 @@ export function LoginPage() {
             </h2>
 
             <p className="text-base sm:text-xl text-white/90">
-              Stop drowning in "where should we stay?" texts. TripBoard gives everyone a place
+              Stop drowning in "where should we stay?" texts. TripBord gives everyone a place
               to share ideas, vote on favorites, and actually make decisions.
             </p>
 
@@ -220,6 +224,17 @@ export function LoginPage() {
             <p className="text-gray-500 mb-6">
               {isSignUp ? 'Sign up to start planning trips' : 'Sign in to access your trips'}
             </p>
+
+            {/* Invite code message */}
+            {inviteCode && (
+              <div className="mb-4 p-3 bg-primary-50 border border-primary-200 rounded-lg">
+                <p className="text-sm text-primary-800">
+                  <span className="font-medium">You've been invited to join a trip!</span>
+                  <br />
+                  Sign in or create an account to join.
+                </p>
+              </div>
+            )}
 
             {/* Error message */}
             {error && (
@@ -366,7 +381,7 @@ export function LoginPage() {
             Perfect for every type of group trip
           </h3>
           <p className="text-white/80 text-center mb-12 max-w-2xl mx-auto">
-            Whether it's a wild weekend or a relaxing retreat, TripBoard keeps everyone organized and on the same page
+            Whether it's a wild weekend or a relaxing retreat, TripBord keeps everyone organized and on the same page
           </p>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {useCases.map((useCase, idx) => (
@@ -462,7 +477,7 @@ export function LoginPage() {
         <div className="max-w-7xl mx-auto px-4 text-center">
           <div className="flex items-center justify-center gap-2 mb-4">
             <Map size={24} />
-            <span className="font-bold text-xl">TripBoard</span>
+            <span className="font-bold text-xl">TripBord</span>
           </div>
           <p className="text-gray-400 text-sm">
             Making group travel planning simple since 2024

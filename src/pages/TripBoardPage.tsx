@@ -32,6 +32,11 @@ export function TripBoardPage() {
     setShowMobileSidebar(false);
   };
 
+  const handleNavigateToBoard = () => {
+    setShowFinalPlan(false);
+    setShowMobileSidebar(false);
+  };
+
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       <Header />
@@ -77,7 +82,7 @@ export function TripBoardPage() {
 
         <main className="flex-1 overflow-hidden p-3 sm:p-6">
           {showFinalPlan ? (
-            <FinalPlan tripId={trip.id} users={users} />
+            <FinalPlan tripId={trip.id} users={users} onNavigateToBoard={handleNavigateToBoard} />
           ) : (
             <Canvas
               tripId={trip.id}

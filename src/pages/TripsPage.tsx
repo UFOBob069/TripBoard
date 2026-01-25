@@ -8,6 +8,7 @@ import {
   CheckCircle,
   Image,
   Crown,
+  Share2,
 } from 'lucide-react';
 import { useTripStore } from '../store/tripStore';
 import { Modal } from '../components/common/Modal';
@@ -73,11 +74,42 @@ export function TripsPage() {
     }
   };
 
+  const getInviteLink = (code: string) => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/join/${code}`;
+  };
+
   const copyInviteCode = (code: string, e: React.MouseEvent) => {
     e.stopPropagation();
     navigator.clipboard.writeText(code);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);
+  };
+
+  const shareTrip = async (trip: typeof tripList[0], e: React.MouseEvent) => {
+    e.stopPropagation();
+    const inviteLink = getInviteLink(trip.invite_code);
+    const shareData = {
+      title: `Join ${trip.name} on TripBord`,
+      text: `You're invited to plan a trip together! Join "${trip.name}" on TripBord.`,
+      url: inviteLink,
+    };
+
+    if (navigator.share && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        // User cancelled, copy link as fallback
+        navigator.clipboard.writeText(inviteLink);
+        setCopiedCode(trip.invite_code);
+        setTimeout(() => setCopiedCode(null), 2000);
+      }
+    } else {
+      // Fallback to copy link
+      navigator.clipboard.writeText(inviteLink);
+      setCopiedCode(trip.invite_code);
+      setTimeout(() => setCopiedCode(null), 2000);
+    }
   };
 
   const getTripProgress = (tripId: string) => {
@@ -270,29 +302,39 @@ export function TripsPage() {
                       </div>
                     </div>
 
-                    {/* Stats & Invite Code */}
+                    {/* Stats & Invite */}
                     <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                       <span className="text-sm text-gray-500">
                         {stats.ideas} ideas &middot; {stats.selected}/6 selected
                       </span>
 
-                      <button
-                        onClick={(e) => copyInviteCode(trip.invite_code, e)}
-                        className="flex items-center gap-1 text-sm text-gray-400 hover:text-primary-600 transition-colors"
-                        title="Copy invite code"
-                      >
-                        {copiedCode === trip.invite_code ? (
-                          <>
-                            <Check size={14} className="text-green-500" />
-                            <span className="text-green-500">Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy size={14} />
-                            <span className="font-mono">{trip.invite_code}</span>
-                          </>
-                        )}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => shareTrip(trip, e)}
+                          className="flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600 transition-colors"
+                          title="Share invite link"
+                        >
+                          <Share2 size={14} />
+                          <span className="hidden sm:inline">Share</span>
+                        </button>
+                        <button
+                          onClick={(e) => copyInviteCode(trip.invite_code, e)}
+                          className="flex items-center gap-1 text-sm text-gray-400 hover:text-primary-600 transition-colors"
+                          title="Copy invite code"
+                        >
+                          {copiedCode === trip.invite_code ? (
+                            <>
+                              <Check size={14} className="text-green-500" />
+                              <span className="text-green-500 hidden sm:inline">Copied!</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy size={14} />
+                              <span className="font-mono text-xs">{trip.invite_code}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>

@@ -27,6 +27,7 @@ const ICON_MAP = {
 interface FinalPlanProps {
   tripId: string;
   users: Record<string, User>;
+  onNavigateToBoard?: (canvas: CanvasType) => void;
 }
 
 interface PlanSectionProps {
@@ -127,7 +128,7 @@ function PlanSection({
   );
 }
 
-export function FinalPlan({ tripId, users }: FinalPlanProps) {
+export function FinalPlan({ tripId, users, onNavigateToBoard }: FinalPlanProps) {
   const { getFinalPlan, trips, setActiveCanvas } = useTripStore();
   const trip = trips[tripId];
   const plan = getFinalPlan(tripId);
@@ -137,20 +138,27 @@ export function FinalPlan({ tripId, users }: FinalPlanProps) {
   const completionCount = [
     plan.dates,
     plan.location,
-    plan.accommodation,
+    plan.accommodation.length > 0,
     plan.activities.length > 0,
     plan.food.length > 0,
-    plan.transportation,
+    plan.transportation.length > 0,
   ].filter(Boolean).length;
 
   const isComplete = completionCount === 6;
+
+  const handleNavigateToBoard = (canvas: CanvasType) => {
+    setActiveCanvas(canvas);
+    if (onNavigateToBoard) {
+      onNavigateToBoard(canvas);
+    }
+  };
 
   const handleShare = async () => {
     const text = `Check out our trip plan for ${trip.name}!`;
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `${trip.name} - TripBoard`,
+          title: `${trip.name} - TripBord`,
           text,
         });
       } catch (err) {
@@ -223,37 +231,37 @@ export function FinalPlan({ tripId, users }: FinalPlanProps) {
             canvasType="dates"
             idea={plan.dates}
             users={users}
-            onNavigate={() => setActiveCanvas('dates')}
+            onNavigate={() => handleNavigateToBoard('dates')}
           />
           <PlanSection
             canvasType="location"
             idea={plan.location}
             users={users}
-            onNavigate={() => setActiveCanvas('location')}
+            onNavigate={() => handleNavigateToBoard('location')}
           />
           <PlanSection
             canvasType="accommodation"
-            idea={plan.accommodation}
+            ideas={plan.accommodation}
             users={users}
-            onNavigate={() => setActiveCanvas('accommodation')}
+            onNavigate={() => handleNavigateToBoard('accommodation')}
           />
           <PlanSection
             canvasType="activities"
             ideas={plan.activities}
             users={users}
-            onNavigate={() => setActiveCanvas('activities')}
+            onNavigate={() => handleNavigateToBoard('activities')}
           />
           <PlanSection
             canvasType="food"
             ideas={plan.food}
             users={users}
-            onNavigate={() => setActiveCanvas('food')}
+            onNavigate={() => handleNavigateToBoard('food')}
           />
           <PlanSection
             canvasType="transportation"
-            idea={plan.transportation}
+            ideas={plan.transportation}
             users={users}
-            onNavigate={() => setActiveCanvas('transportation')}
+            onNavigate={() => handleNavigateToBoard('transportation')}
           />
         </div>
 

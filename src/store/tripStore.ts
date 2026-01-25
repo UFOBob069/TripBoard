@@ -74,10 +74,10 @@ interface TripState {
   getFinalPlan: (tripId: string) => {
     dates?: Idea;
     location?: Idea;
-    accommodation?: Idea;
+    accommodation: Idea[];
     activities: Idea[];
     food: Idea[];
-    transportation?: Idea;
+    transportation: Idea[];
   } | null;
   getTripActivities: (tripId: string, limit?: number) => Activity[];
 }
@@ -476,10 +476,10 @@ export const useTripStore = create<TripState>()((set, get) => ({
     return {
       dates: getSelectedIdea('dates'),
       location: getSelectedIdea('location'),
-      accommodation: getSelectedIdea('accommodation'),
+      accommodation: getSelectedIdeas('accommodation'),
       activities: getSelectedIdeas('activities'),
       food: getSelectedIdeas('food'),
-      transportation: getSelectedIdea('transportation'),
+      transportation: getSelectedIdeas('transportation'),
     };
   },
 
