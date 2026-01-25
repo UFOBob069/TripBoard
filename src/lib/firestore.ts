@@ -5,6 +5,7 @@ import {
   getDoc,
   getDocs,
   updateDoc,
+  deleteDoc,
   query,
   where,
   onSnapshot,
@@ -168,6 +169,22 @@ export const joinTrip = async (
   });
 
   return { ...trip, members: [...trip.members, newMember] };
+};
+
+// Delete a trip (owner only)
+export const deleteTrip = async (tripId: string, userId: string): Promise<boolean> => {
+  const tripRef = doc(db, TRIPS_COLLECTION, tripId);
+  const tripDoc = await getDoc(tripRef);
+
+  if (!tripDoc.exists()) return false;
+
+  const trip = tripDoc.data() as Trip;
+
+  // Only owner can delete
+  if (trip.owner_id !== userId) return false;
+
+  await deleteDoc(tripRef);
+  return true;
 };
 
 // Update trip status

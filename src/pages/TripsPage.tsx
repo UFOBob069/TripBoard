@@ -9,6 +9,8 @@ import {
   Image,
   Crown,
   Share2,
+  Trash2,
+  MoreVertical,
 } from 'lucide-react';
 import { useTripStore } from '../store/tripStore';
 import { Modal } from '../components/common/Modal';
@@ -38,6 +40,9 @@ export function TripsPage() {
   const [joinError, setJoinError] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [tripMenuOpen, setTripMenuOpen] = useState<string | null>(null);
+
   const {
     trips,
     users,
@@ -45,6 +50,7 @@ export function TripsPage() {
     setActiveTrip,
     createTrip,
     joinTrip,
+    deleteTrip,
   } = useTripStore();
 
   const tripList = Object.values(trips).filter((trip) =>
@@ -160,6 +166,20 @@ export function TripsPage() {
     return trip?.owner_id === currentUser?.id;
   };
 
+  const handleDeleteTrip = async (tripId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const success = await deleteTrip(tripId);
+    if (success) {
+      setShowDeleteConfirm(null);
+      setTripMenuOpen(null);
+    }
+  };
+
+  const toggleTripMenu = (tripId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setTripMenuOpen(tripMenuOpen === tripId ? null : tripId);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
@@ -257,13 +277,40 @@ export function TripsPage() {
                       {statusConfig.label}
                     </div>
 
-                    {/* Owner badge */}
-                    {isOwner(trip.id) && (
-                      <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 bg-yellow-500 text-white text-xs font-medium rounded-full">
-                        <Crown size={12} />
-                        Owner
-                      </div>
-                    )}
+                    {/* Owner badge & menu */}
+                    <div className="absolute top-3 right-3 flex items-center gap-2">
+                      {isOwner(trip.id) && (
+                        <>
+                          <div className="flex items-center gap-1 px-2 py-1 bg-yellow-500 text-white text-xs font-medium rounded-full">
+                            <Crown size={12} />
+                            Owner
+                          </div>
+                          <div className="relative">
+                            <button
+                              onClick={(e) => toggleTripMenu(trip.id, e)}
+                              className="p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
+                            >
+                              <MoreVertical size={14} />
+                            </button>
+                            {tripMenuOpen === trip.id && (
+                              <div className="absolute right-0 mt-1 w-32 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowDeleteConfirm(trip.id);
+                                    setTripMenuOpen(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                >
+                                  <Trash2 size={14} />
+                                  Delete Trip
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   <div className="p-4">
@@ -481,6 +528,35 @@ export function TripsPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteConfirm !== null}
+        onClose={() => setShowDeleteConfirm(null)}
+        title="Delete Trip"
+      >
+        <div className="space-y-4">
+          <p className="text-gray-600">
+            Are you sure you want to delete this trip? This action cannot be undone and all ideas, votes, and comments will be permanently removed.
+          </p>
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(null)}
+              className="btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={(e) => showDeleteConfirm && handleDeleteTrip(showDeleteConfirm, e)}
+              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors flex items-center gap-2"
+            >
+              <Trash2 size={16} />
+              Delete Trip
+            </button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

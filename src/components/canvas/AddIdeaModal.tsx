@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Modal } from '../common/Modal';
 import type { CanvasType, DateIdeaMetadata, TransportationMetadata } from '../../types';
 import { CANVAS_CONFIG } from '../../types';
@@ -65,11 +65,23 @@ const PLACEHOLDER_IMAGES: Record<CanvasType, string[]> = {
   ],
 };
 
-// Popular city suggestions
-const POPULAR_CITIES = [
-  'Paris', 'Tokyo', 'New York', 'London', 'Barcelona',
-  'Rome', 'Dubai', 'Bali', 'Sydney', 'Amsterdam',
-  'Miami', 'Las Vegas', 'Cancun', 'Hawaii', 'Cabo',
+// Popular city suggestions with images
+const POPULAR_DESTINATIONS = [
+  { name: 'Paris', country: 'France', image: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800' },
+  { name: 'Tokyo', country: 'Japan', image: 'https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?w=800' },
+  { name: 'New York', country: 'USA', image: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800' },
+  { name: 'London', country: 'UK', image: 'https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?w=800' },
+  { name: 'Barcelona', country: 'Spain', image: 'https://images.unsplash.com/photo-1583422409516-2895a77efded?w=800' },
+  { name: 'Rome', country: 'Italy', image: 'https://images.unsplash.com/photo-1552832230-c0197dd311b5?w=800' },
+  { name: 'Dubai', country: 'UAE', image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?w=800' },
+  { name: 'Bali', country: 'Indonesia', image: 'https://images.unsplash.com/photo-1537996194471-e657df975ab4?w=800' },
+  { name: 'Sydney', country: 'Australia', image: 'https://images.unsplash.com/photo-1506973035872-a4ec16b8e8d9?w=800' },
+  { name: 'Amsterdam', country: 'Netherlands', image: 'https://images.unsplash.com/photo-1534351590666-13e3e96b5017?w=800' },
+  { name: 'Miami', country: 'USA', image: 'https://images.unsplash.com/photo-1533106497176-45ae19e68ba2?w=800' },
+  { name: 'Las Vegas', country: 'USA', image: 'https://images.unsplash.com/photo-1605833556294-ea5c7a74f57d?w=800' },
+  { name: 'Cancun', country: 'Mexico', image: 'https://images.unsplash.com/photo-1552074284-5e88ef1aef18?w=800' },
+  { name: 'Hawaii', country: 'USA', image: 'https://images.unsplash.com/photo-1507876466758-bc54f384809c?w=800' },
+  { name: 'Cabo', country: 'Mexico', image: 'https://images.unsplash.com/photo-1519046904884-53103b34b206?w=800' },
 ];
 
 // Transportation types with icons
@@ -81,11 +93,19 @@ const TRANSPORTATION_TYPES = [
   { type: 'ferry', label: 'Ferry / Boat', icon: Ship, color: 'bg-indigo-500' },
 ] as const;
 
-// Generate city image URL using Unsplash source
-const getCityImageUrl = (city: string): string => {
-  const searchTerm = encodeURIComponent(`${city} city skyline travel`);
-  return `https://source.unsplash.com/800x600/?${searchTerm}`;
-};
+interface MapboxFeature {
+  id: string;
+  place_name: string;
+  text: string;
+  properties: {
+    short_code?: string;
+  };
+  context?: Array<{
+    id: string;
+    text: string;
+    short_code?: string;
+  }>;
+}
 
 export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaModalProps) {
   const [title, setTitle] = useState('');
@@ -99,9 +119,14 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
   const [showImagePicker, setShowImagePicker] = useState(false);
   const [citySearch, setCitySearch] = useState('');
   const [showCitySuggestions, setShowCitySuggestions] = useState(false);
+  const [mapboxResults, setMapboxResults] = useState<MapboxFeature[]>([]);
   const [transportationType, setTransportationType] = useState<TransportationMetadata['type']>('flight');
   const [carrier, setCarrier] = useState('');
   const [price, setPrice] = useState('');
+  const [itemDate, setItemDate] = useState('');
+
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
   const { addIdea, currentUser } = useTripStore();
   const config = CANVAS_CONFIG[canvasType];
@@ -110,25 +135,107 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
   const isLocationBoard = canvasType === 'location';
   const isTransportationBoard = canvasType === 'transportation';
 
-  const filteredCities = POPULAR_CITIES.filter((city) =>
-    city.toLowerCase().includes(citySearch.toLowerCase())
+  // Mapbox geocoding search
+  useEffect(() => {
+    if (!isLocationBoard || !citySearch || citySearch.length < 2) {
+      setMapboxResults([]);
+      return;
+    }
+
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Debounce the search
+    searchTimeoutRef.current = setTimeout(async () => {
+      if (!mapboxToken) {
+        // Fallback to local search if no Mapbox token
+        const filtered = POPULAR_DESTINATIONS.filter((d) =>
+          d.name.toLowerCase().includes(citySearch.toLowerCase()) ||
+          d.country.toLowerCase().includes(citySearch.toLowerCase())
+        );
+        setMapboxResults(filtered.map((d) => ({
+          id: d.name,
+          place_name: `${d.name}, ${d.country}`,
+          text: d.name,
+          properties: {},
+        })));
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(citySearch)}.json?types=place,locality,region&limit=6&access_token=${mapboxToken}`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setMapboxResults(data.features || []);
+        }
+      } catch (error) {
+        console.error('Mapbox search error:', error);
+      }
+    }, 300);
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [citySearch, isLocationBoard, mapboxToken]);
+
+  const filteredLocalDestinations = POPULAR_DESTINATIONS.filter((d) =>
+    d.name.toLowerCase().includes(citySearch.toLowerCase()) ||
+    d.country.toLowerCase().includes(citySearch.toLowerCase())
   );
 
-  const handleCitySelect = (city: string) => {
-    setTitle(city);
-    setCitySearch(city);
-    setShowCitySuggestions(false);
-    // Auto-fetch image for the city
-    setIsLoading(true);
-    const cityImageUrl = getCityImageUrl(city);
-    setImageUrl(cityImageUrl);
-    // Small delay to show loading state
-    setTimeout(() => setIsLoading(false), 300);
+  // Get image for a city - check popular destinations first, then use Unsplash
+  const getCityImage = (cityName: string): string => {
+    const popularCity = POPULAR_DESTINATIONS.find(
+      (d) => d.name.toLowerCase() === cityName.toLowerCase()
+    );
+    if (popularCity) {
+      return popularCity.image;
+    }
+    // Use Unsplash with specific query for better results
+    return `https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80`;
   };
 
-  const handleCitySearch = () => {
-    if (!citySearch.trim()) return;
-    handleCitySelect(citySearch.trim());
+  const handleCitySelect = async (cityName: string, placeName?: string) => {
+    setTitle(placeName || cityName);
+    setCitySearch(cityName);
+    setShowCitySuggestions(false);
+    setIsLoading(true);
+
+    // Try to get city image
+    const cityImage = getCityImage(cityName);
+    setImageUrl(cityImage);
+
+    // If not a popular destination, try to fetch a relevant image
+    const isPopular = POPULAR_DESTINATIONS.some(
+      (d) => d.name.toLowerCase() === cityName.toLowerCase()
+    );
+
+    if (!isPopular) {
+      // Try Teleport API for city photos (free, no auth required)
+      try {
+        const slug = cityName.toLowerCase().replace(/\s+/g, '-');
+        const teleportResponse = await fetch(
+          `https://api.teleport.org/api/urban_areas/slug:${slug}/images/`
+        );
+        if (teleportResponse.ok) {
+          const data = await teleportResponse.json();
+          if (data.photos?.[0]?.image?.web) {
+            setImageUrl(data.photos[0].image.web);
+          }
+        }
+      } catch {
+        // Fallback to Unsplash with city name
+        setImageUrl(`https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80`);
+      }
+    }
+
+    setIsLoading(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -144,7 +251,6 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
         flexible,
       };
 
-      // Format title from dates
       const start = new Date(startDate);
       const end = new Date(endDate);
       const dateTitle = `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
@@ -161,7 +267,7 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
       await addIdea(tripId, canvasType, {
         title: title.trim(),
         description: description.trim(),
-        image_url: imageUrl || getCityImageUrl(title.trim()),
+        image_url: imageUrl || getCityImage(title.trim()),
         created_by: currentUser.id,
       });
     } else if (isTransportationBoard) {
@@ -175,7 +281,7 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
 
       await addIdea(tripId, canvasType, {
         title: title.trim(),
-        description: description.trim(),
+        description: description.trim() + (itemDate ? `\n📅 ${new Date(itemDate).toLocaleDateString()}` : ''),
         image_url: imageUrl || undefined,
         link_url: linkUrl || undefined,
         created_by: currentUser.id,
@@ -186,7 +292,7 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
 
       await addIdea(tripId, canvasType, {
         title: title.trim(),
-        description: description.trim(),
+        description: description.trim() + (itemDate ? `\n📅 ${new Date(itemDate).toLocaleDateString()}` : ''),
         image_url: imageUrl || undefined,
         link_url: linkUrl || undefined,
         created_by: currentUser.id,
@@ -205,6 +311,8 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
     setTransportationType('flight');
     setCarrier('');
     setPrice('');
+    setItemDate('');
+    setMapboxResults([]);
     onClose();
   };
 
@@ -214,71 +322,63 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
     setIsLoading(true);
 
     try {
-      // Try to fetch link metadata using a free link preview API
-      const encodedUrl = encodeURIComponent(linkUrl);
-      const response = await fetch(`https://api.linkpreview.net/?key=free&q=${encodedUrl}`, {
-        method: 'GET',
-      }).catch(() => null);
+      // Use microlink.io for better link previews (free tier available)
+      const response = await fetch(
+        `https://api.microlink.io/?url=${encodeURIComponent(linkUrl)}`
+      );
 
-      if (response && response.ok) {
+      if (response.ok) {
         const data = await response.json();
-        if (data.title && !title) {
-          setTitle(data.title);
-        }
-        if (data.image) {
-          setImageUrl(data.image);
-        } else if (data.favicon) {
-          // Use favicon as fallback if no image
-          setImageUrl(data.favicon);
+        if (data.status === 'success' && data.data) {
+          const { title: fetchedTitle, image, logo } = data.data;
+
+          if (fetchedTitle && !title) {
+            setTitle(fetchedTitle);
+          }
+
+          if (image?.url) {
+            setImageUrl(image.url);
+          } else if (logo?.url) {
+            setImageUrl(logo.url);
+          }
         }
       } else {
-        // Fallback: Try to extract info from URL
-        try {
-          const url = new URL(linkUrl);
-
-          // Generate a more meaningful title from URL path
-          if (!title) {
-            const pathParts = url.pathname.split('/').filter(Boolean);
-            if (pathParts.length > 0) {
-              // Use the last meaningful path segment
-              const lastPart = pathParts[pathParts.length - 1]
-                .replace(/[-_]/g, ' ')
-                .replace(/\.\w+$/, '') // Remove file extension
-                .split(' ')
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-                .join(' ');
-              setTitle(lastPart || url.hostname.replace('www.', ''));
-            } else {
-              setTitle(url.hostname.replace('www.', ''));
-            }
-          }
-
-          // Use a relevant placeholder based on canvas type
-          const placeholders = PLACEHOLDER_IMAGES[canvasType];
-          if (placeholders.length > 0 && !imageUrl) {
-            setImageUrl(placeholders[Math.floor(Math.random() * placeholders.length)]);
-          }
-        } catch {
-          // Invalid URL, ignore
-        }
+        // Fallback: extract from URL
+        extractFromUrl();
       }
     } catch (error) {
       console.error('Error fetching link preview:', error);
-      // Use fallback placeholder
-      const placeholders = PLACEHOLDER_IMAGES[canvasType];
-      if (placeholders.length > 0) {
-        setImageUrl(placeholders[Math.floor(Math.random() * placeholders.length)]);
-      }
-      if (!title) {
-        try {
-          const url = new URL(linkUrl);
-          setTitle(url.hostname.replace('www.', ''));
-        } catch {
-          // Invalid URL
-        }
-      }
+      extractFromUrl();
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const extractFromUrl = () => {
+    try {
+      const url = new URL(linkUrl);
+
+      if (!title) {
+        const pathParts = url.pathname.split('/').filter(Boolean);
+        if (pathParts.length > 0) {
+          const lastPart = pathParts[pathParts.length - 1]
+            .replace(/[-_]/g, ' ')
+            .replace(/\.\w+$/, '')
+            .split(' ')
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(' ');
+          setTitle(lastPart || url.hostname.replace('www.', ''));
+        } else {
+          setTitle(url.hostname.replace('www.', ''));
+        }
+      }
+
+      const placeholders = PLACEHOLDER_IMAGES[canvasType];
+      if (placeholders.length > 0 && !imageUrl) {
+        setImageUrl(placeholders[Math.floor(Math.random() * placeholders.length)]);
+      }
+    } catch {
+      // Invalid URL
     }
   };
 
@@ -356,9 +456,8 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
             )}
           </>
         ) : isLocationBoard ? (
-          // Location/City-specific form
+          // Location/City-specific form with Mapbox
           <>
-            {/* City search */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <span className="flex items-center gap-2">
@@ -379,28 +478,54 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
                       }}
                       onFocus={() => setShowCitySuggestions(true)}
                       className="input-field"
-                      placeholder="e.g., Paris, Tokyo, New York..."
+                      placeholder="Search for a city..."
                       required
                     />
-                    {showCitySuggestions && citySearch && filteredCities.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-48 overflow-y-auto">
-                        {filteredCities.map((city) => (
-                          <button
-                            key={city}
-                            type="button"
-                            onClick={() => handleCitySelect(city)}
-                            className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-2"
-                          >
-                            <MapPin size={14} className="text-gray-400" />
-                            {city}
-                          </button>
-                        ))}
+                    {showCitySuggestions && citySearch.length >= 2 && (
+                      <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-64 overflow-y-auto">
+                        {mapboxResults.length > 0 ? (
+                          mapboxResults.map((result) => (
+                            <button
+                              key={result.id}
+                              type="button"
+                              onClick={() => handleCitySelect(result.text, result.place_name)}
+                              className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0"
+                            >
+                              <MapPin size={16} className="text-gray-400 flex-shrink-0" />
+                              <div>
+                                <p className="font-medium text-gray-800">{result.text}</p>
+                                <p className="text-xs text-gray-500">{result.place_name}</p>
+                              </div>
+                            </button>
+                          ))
+                        ) : filteredLocalDestinations.length > 0 ? (
+                          filteredLocalDestinations.map((dest) => (
+                            <button
+                              key={dest.name}
+                              type="button"
+                              onClick={() => handleCitySelect(dest.name, `${dest.name}, ${dest.country}`)}
+                              className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="w-12 h-8 rounded overflow-hidden flex-shrink-0">
+                                <img src={dest.image} alt={dest.name} className="w-full h-full object-cover" />
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-800">{dest.name}</p>
+                                <p className="text-xs text-gray-500">{dest.country}</p>
+                              </div>
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-4 py-3 text-sm text-gray-500">
+                            {mapboxToken ? 'Searching...' : 'No results found'}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                   <button
                     type="button"
-                    onClick={handleCitySearch}
+                    onClick={() => citySearch && handleCitySelect(citySearch)}
                     disabled={!citySearch || isLoading}
                     className="btn-secondary text-sm flex items-center gap-2"
                   >
@@ -413,23 +538,30 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
                 </div>
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                Enter a city name to auto-fetch an image
+                Search for any city worldwide
               </p>
             </div>
 
-            {/* Popular cities */}
+            {/* Popular destinations */}
             {!citySearch && (
               <div>
                 <p className="text-xs text-gray-500 mb-2">Popular destinations</p>
-                <div className="flex flex-wrap gap-2">
-                  {POPULAR_CITIES.slice(0, 10).map((city) => (
+                <div className="grid grid-cols-5 gap-2">
+                  {POPULAR_DESTINATIONS.slice(0, 10).map((dest) => (
                     <button
-                      key={city}
+                      key={dest.name}
                       type="button"
-                      onClick={() => handleCitySelect(city)}
-                      className="px-3 py-1.5 bg-gray-100 hover:bg-primary-100 hover:text-primary-700 text-gray-600 text-sm rounded-full transition-colors"
+                      onClick={() => handleCitySelect(dest.name, `${dest.name}, ${dest.country}`)}
+                      className="group relative h-16 rounded-lg overflow-hidden"
                     >
-                      {city}
+                      <img
+                        src={dest.image}
+                        alt={dest.name}
+                        className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                      />
+                      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors flex items-end p-1.5">
+                        <span className="text-white text-xs font-medium truncate">{dest.name}</span>
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -471,7 +603,6 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
         ) : isTransportationBoard ? (
           // Transportation-specific form
           <>
-            {/* Transportation Type Selector */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Transportation Type
@@ -503,7 +634,6 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
               </div>
             </div>
 
-            {/* Link URL with auto-fetch */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <span className="flex items-center gap-2">
@@ -525,16 +655,11 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
                   disabled={!linkUrl || isLoading}
                   className="flex-shrink-0 btn-secondary text-sm flex items-center gap-2"
                 >
-                  {isLoading ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    'Fetch'
-                  )}
+                  {isLoading ? <Loader2 size={16} className="animate-spin" /> : 'Fetch'}
                 </button>
               </div>
             </div>
 
-            {/* Title */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Title <span className="text-red-500">*</span>
@@ -544,28 +669,27 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 className="input-field"
-                placeholder={`e.g., ${transportationType === 'flight' ? 'LAX to JFK - Delta' : transportationType === 'car' ? 'Hertz SUV Rental' : transportationType === 'train' ? 'Amtrak Northeast Regional' : 'Bus to destination'}`}
+                placeholder={`e.g., ${transportationType === 'flight' ? 'LAX to JFK - Delta' : transportationType === 'car' ? 'Hertz SUV Rental' : 'Train to destination'}`}
                 required
               />
             </div>
 
-            {/* Carrier & Price */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {transportationType === 'flight' ? 'Airline' : transportationType === 'car' ? 'Rental Company' : 'Carrier'} (optional)
+                  {transportationType === 'flight' ? 'Airline' : 'Carrier'} (opt)
                 </label>
                 <input
                   type="text"
                   value={carrier}
                   onChange={(e) => setCarrier(e.target.value)}
                   className="input-field"
-                  placeholder={transportationType === 'flight' ? 'e.g., Delta, United' : 'e.g., Hertz, Enterprise'}
+                  placeholder="e.g., Delta"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Price (optional)
+                  Price (opt)
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
@@ -574,15 +698,25 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     className="input-field pl-7"
-                    placeholder="0.00"
+                    placeholder="0"
                     min="0"
-                    step="0.01"
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <Calendar size={14} className="inline mr-1" />
+                  Date (opt)
+                </label>
+                <input
+                  type="date"
+                  value={itemDate}
+                  onChange={(e) => setItemDate(e.target.value)}
+                  className="input-field"
+                />
+              </div>
             </div>
 
-            {/* Description */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Notes (optional)
@@ -595,7 +729,6 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
               />
             </div>
 
-            {/* Image preview if fetched */}
             {imageUrl && (
               <div className="relative h-32 rounded-lg overflow-hidden">
                 <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
@@ -610,9 +743,8 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
             )}
           </>
         ) : (
-          // Standard form for other canvases
+          // Standard form for accommodation, activities, food
           <>
-            {/* Link URL with auto-fetch */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 <span className="flex items-center gap-2">
@@ -626,7 +758,7 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
                   value={linkUrl}
                   onChange={(e) => setLinkUrl(e.target.value)}
                   className="input-field flex-1 min-w-0"
-                  placeholder="https://expedia.com/hotel..."
+                  placeholder="https://expedia.com/..."
                 />
                 <button
                   type="button"
@@ -634,11 +766,7 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
                   disabled={!linkUrl || isLoading}
                   className="flex-shrink-0 btn-secondary text-sm flex items-center gap-2"
                 >
-                  {isLoading ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    'Fetch'
-                  )}
+                  {isLoading ? <Loader2 size={16} className="animate-spin" /> : 'Fetch'}
                 </button>
               </div>
               <p className="text-xs text-gray-400 mt-1">
@@ -646,7 +774,6 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
               </p>
             </div>
 
-            {/* Title */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Title <span className="text-red-500">*</span>
@@ -661,7 +788,25 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
               />
             </div>
 
-            {/* Description */}
+            {/* Date field for activities, food, accommodation */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                <span className="flex items-center gap-2">
+                  <Calendar size={16} />
+                  Date (optional)
+                </span>
+              </label>
+              <input
+                type="date"
+                value={itemDate}
+                onChange={(e) => setItemDate(e.target.value)}
+                className="input-field"
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                When do you plan to do this?
+              </p>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Description
@@ -674,7 +819,6 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
               />
             </div>
 
-            {/* Image */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Image
@@ -701,7 +845,6 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
                 </button>
               )}
 
-              {/* Image picker */}
               {showImagePicker && PLACEHOLDER_IMAGES[canvasType].length > 0 && (
                 <div className="mt-2 grid grid-cols-4 gap-2">
                   {PLACEHOLDER_IMAGES[canvasType].map((url, idx) => (

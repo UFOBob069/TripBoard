@@ -34,6 +34,7 @@ interface TripState {
   // Trip actions
   createTrip: (name: string, description: string, coverImage?: string) => Promise<Trip | null>;
   joinTrip: (inviteCode: string) => Promise<Trip | null>;
+  deleteTrip: (tripId: string) => Promise<boolean>;
   setActiveTrip: (tripId: string | null) => void;
   setActiveCanvas: (canvas: CanvasType) => void;
   updateTripStatus: (tripId: string, status: TripStatus) => Promise<void>;
@@ -171,6 +172,30 @@ export const useTripStore = create<TripState>()((set, get) => ({
     } catch (error) {
       console.error('Error joining trip:', error);
       return null;
+    }
+  },
+
+  deleteTrip: async (tripId) => {
+    const { currentUser, isOwner, unsubscribeFromTrip } = get();
+    if (!currentUser || !isOwner(tripId)) return false;
+
+    try {
+      const success = await firestoreService.deleteTrip(tripId, currentUser.id);
+      if (success) {
+        unsubscribeFromTrip(tripId);
+        set((state) => {
+          const newTrips = { ...state.trips };
+          delete newTrips[tripId];
+          return {
+            trips: newTrips,
+            activeTripId: state.activeTripId === tripId ? null : state.activeTripId,
+          };
+        });
+      }
+      return success;
+    } catch (error) {
+      console.error('Error deleting trip:', error);
+      return false;
     }
   },
 
