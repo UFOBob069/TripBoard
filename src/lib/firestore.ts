@@ -73,7 +73,7 @@ export const createTrip = async (
     id: tripId,
     name,
     description,
-    cover_image: coverImage,
+    ...(coverImage && { cover_image: coverImage }),
     owner_id: ownerId,
     created_at: new Date(),
     members: [{

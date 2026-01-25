@@ -22,7 +22,6 @@ import { Header } from '../components/layout/Header';
 import type { CanvasType } from '../types';
 import { TRIP_STATUS_CONFIG } from '../types';
 import { uploadTripCoverPhoto } from '../lib/storage';
-import { updateTripCover as firestoreUpdateTripCover } from '../lib/firestore';
 
 const COVER_IMAGES = [
   'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
@@ -44,6 +43,7 @@ export function TripsPage() {
   const [customCoverFile, setCustomCoverFile] = useState<File | null>(null);
   const [customCoverPreview, setCustomCoverPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [createError, setCreateError] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [joinError, setJoinError] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -72,24 +72,38 @@ export function TripsPage() {
     if (!tripName.trim()) return;
 
     setIsUploading(true);
+    setCreateError('');
+
     try {
-      // Create trip first (with preset or placeholder image)
+      // If custom cover selected, upload first, then create trip with that URL
+      // Otherwise, use the preset cover image
+      let finalCoverImage = coverImage;
+
+      if (customCoverFile) {
+        try {
+          // Generate a temporary ID for the upload path
+          const tempId = crypto.randomUUID();
+          const uploadedUrl = await uploadTripCoverPhoto(tempId, customCoverFile);
+          finalCoverImage = uploadedUrl;
+        } catch (uploadError) {
+          console.error('Error uploading cover photo:', uploadError);
+          setCreateError('Failed to upload cover photo. Please try again or choose a preset image.');
+          setIsUploading(false);
+          return;
+        }
+      }
+
+      // Create trip with the cover image
       const trip = await createTrip(
         tripName.trim(),
         tripDescription.trim(),
-        customCoverFile ? undefined : coverImage
+        finalCoverImage
       );
 
-      // If custom cover photo was selected, upload it and update the trip
-      if (trip && customCoverFile) {
-        try {
-          const uploadedUrl = await uploadTripCoverPhoto(trip.id, customCoverFile);
-          // Update the trip with the uploaded cover image
-          await firestoreUpdateTripCover(trip.id, uploadedUrl);
-        } catch (uploadError) {
-          console.error('Error uploading cover photo:', uploadError);
-          // Trip was created, just cover upload failed - that's okay
-        }
+      if (!trip) {
+        setCreateError('Failed to create trip. Please try again.');
+        setIsUploading(false);
+        return;
       }
 
       // Reset form
@@ -98,7 +112,11 @@ export function TripsPage() {
       setCoverImage(COVER_IMAGES[0]);
       setCustomCoverFile(null);
       setCustomCoverPreview(null);
+      setCreateError('');
       setShowCreateModal(false);
+    } catch (error) {
+      console.error('Error creating trip:', error);
+      setCreateError('Something went wrong. Please try again.');
     } finally {
       setIsUploading(false);
     }
@@ -567,6 +585,12 @@ export function TripsPage() {
               </>
             )}
           </div>
+
+          {createError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-sm text-red-700">{createError}</p>
+            </div>
+          )}
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-800">

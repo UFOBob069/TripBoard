@@ -184,13 +184,13 @@ export function TripBoardPage() {
               </div>
             )}
 
-            {/* Activity button - only show on mobile or when panel is closed */}
+            {/* Activity button - show on mobile always, show on desktop when panel is closed */}
             <button
               onClick={() => setShowActivityPanel(!showActivityPanel)}
-              className={`p-2 rounded-lg transition-colors lg:hidden ${
-                showActivityPanel ? 'bg-primary-100 text-primary-600' : 'hover:bg-gray-100 text-gray-600'
+              className={`p-2 rounded-lg transition-colors ${
+                showActivityPanel ? 'bg-primary-100 text-primary-600 lg:hidden' : 'hover:bg-gray-100 text-gray-600'
               }`}
-              title="Recent Activity"
+              title={showActivityPanel ? 'Hide Activity' : 'Show Activity'}
             >
               <Activity size={20} />
             </button>

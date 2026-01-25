@@ -794,20 +794,29 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
                 )}
 
                 {showManualImageInput && (
-                  <div className="mt-2 flex gap-2">
-                    <input
-                      type="url"
-                      value={manualImageUrl}
-                      onChange={(e) => setManualImageUrl(e.target.value)}
-                      className="input-field flex-1 text-sm"
-                      placeholder="Paste image URL..."
-                    />
-                    <button type="button" onClick={handleManualImageSubmit} className="btn-secondary text-sm">
-                      Set
-                    </button>
-                    <button type="button" onClick={() => setShowManualImageInput(false)} className="btn-secondary text-sm">
-                      <X size={14} />
-                    </button>
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Enter Image URL
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={manualImageUrl}
+                        onChange={(e) => setManualImageUrl(e.target.value)}
+                        className="input-field flex-1"
+                        placeholder="https://example.com/image.jpg"
+                        autoFocus
+                      />
+                      <button type="button" onClick={handleManualImageSubmit} className="btn-primary text-sm">
+                        Set
+                      </button>
+                      <button type="button" onClick={() => setShowManualImageInput(false)} className="btn-secondary text-sm">
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Paste a direct link to an image (right-click image → Copy image address)
+                    </p>
                   </div>
                 )}
 
