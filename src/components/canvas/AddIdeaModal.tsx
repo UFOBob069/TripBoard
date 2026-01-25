@@ -17,6 +17,8 @@ import {
   Train,
   Bus,
   Ship,
+  Image as ImageIcon,
+  X,
 } from 'lucide-react';
 
 interface AddIdeaModalProps {
@@ -82,6 +84,11 @@ const POPULAR_DESTINATIONS = [
   { name: 'Cancun', country: 'Mexico', image: 'https://images.unsplash.com/photo-1552074284-5e88ef1aef18?w=800' },
   { name: 'Hawaii', country: 'USA', image: 'https://images.unsplash.com/photo-1507876466758-bc54f384809c?w=800' },
   { name: 'Cabo', country: 'Mexico', image: 'https://images.unsplash.com/photo-1519046904884-53103b34b206?w=800' },
+  { name: 'Austin', country: 'USA', image: 'https://images.unsplash.com/photo-1531218150217-54595bc2b934?w=800' },
+  { name: 'Nashville', country: 'USA', image: 'https://images.unsplash.com/photo-1545419913-775cde142068?w=800' },
+  { name: 'Denver', country: 'USA', image: 'https://images.unsplash.com/photo-1619856699906-09e1f58c98b1?w=800' },
+  { name: 'San Francisco', country: 'USA', image: 'https://images.unsplash.com/photo-1501594907352-04cda38ebc29?w=800' },
+  { name: 'Los Angeles', country: 'USA', image: 'https://images.unsplash.com/photo-1534190760961-74e8c1c5c3da?w=800' },
 ];
 
 // Transportation types with icons
@@ -112,6 +119,8 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
   const [description, setDescription] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [imageUrl, setImageUrl] = useState('');
+  const [manualImageUrl, setManualImageUrl] = useState('');
+  const [showManualImageInput, setShowManualImageInput] = useState(false);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [flexible, setFlexible] = useState(false);
@@ -142,15 +151,12 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
       return;
     }
 
-    // Clear previous timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    // Debounce the search
     searchTimeoutRef.current = setTimeout(async () => {
       if (!mapboxToken) {
-        // Fallback to local search if no Mapbox token
         const filtered = POPULAR_DESTINATIONS.filter((d) =>
           d.name.toLowerCase().includes(citySearch.toLowerCase()) ||
           d.country.toLowerCase().includes(citySearch.toLowerCase())
@@ -189,52 +195,43 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
     d.country.toLowerCase().includes(citySearch.toLowerCase())
   );
 
-  // Get image for a city - check popular destinations first, then use Unsplash
-  const getCityImage = (cityName: string): string => {
-    const popularCity = POPULAR_DESTINATIONS.find(
-      (d) => d.name.toLowerCase() === cityName.toLowerCase()
-    );
-    if (popularCity) {
-      return popularCity.image;
-    }
-    // Use Unsplash with specific query for better results
-    return `https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80`;
-  };
-
   const handleCitySelect = async (cityName: string, placeName?: string) => {
     setTitle(placeName || cityName);
     setCitySearch(cityName);
     setShowCitySuggestions(false);
     setIsLoading(true);
 
-    // Try to get city image
-    const cityImage = getCityImage(cityName);
-    setImageUrl(cityImage);
-
-    // If not a popular destination, try to fetch a relevant image
-    const isPopular = POPULAR_DESTINATIONS.some(
+    // Check popular destinations first for reliable images
+    const popularCity = POPULAR_DESTINATIONS.find(
       (d) => d.name.toLowerCase() === cityName.toLowerCase()
     );
 
-    if (!isPopular) {
-      // Try Teleport API for city photos (free, no auth required)
-      try {
-        const slug = cityName.toLowerCase().replace(/\s+/g, '-');
-        const teleportResponse = await fetch(
-          `https://api.teleport.org/api/urban_areas/slug:${slug}/images/`
-        );
-        if (teleportResponse.ok) {
-          const data = await teleportResponse.json();
-          if (data.photos?.[0]?.image?.web) {
-            setImageUrl(data.photos[0].image.web);
-          }
-        }
-      } catch {
-        // Fallback to Unsplash with city name
-        setImageUrl(`https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?w=800&q=80`);
-      }
+    if (popularCity) {
+      setImageUrl(popularCity.image);
+      setIsLoading(false);
+      return;
     }
 
+    // Try Teleport API for city photos
+    try {
+      const slug = cityName.toLowerCase().replace(/\s+/g, '-');
+      const teleportResponse = await fetch(
+        `https://api.teleport.org/api/urban_areas/slug:${slug}/images/`
+      );
+      if (teleportResponse.ok) {
+        const data = await teleportResponse.json();
+        if (data.photos?.[0]?.image?.web) {
+          setImageUrl(data.photos[0].image.web);
+          setIsLoading(false);
+          return;
+        }
+      }
+    } catch {
+      // Continue to Unsplash fallback
+    }
+
+    // Unsplash fallback - use a generic city image
+    setImageUrl(`https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=800&q=80`);
     setIsLoading(false);
   };
 
@@ -242,78 +239,112 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
     e.preventDefault();
     if (!currentUser) return;
 
-    if (isDateBoard) {
-      if (!startDate || !endDate) return;
+    setIsLoading(true);
 
-      const metadata: DateIdeaMetadata = {
-        start_date: startDate,
-        end_date: endDate,
-        flexible,
-      };
+    try {
+      if (isDateBoard) {
+        if (!startDate || !endDate) {
+          setIsLoading(false);
+          return;
+        }
 
-      const start = new Date(startDate);
-      const end = new Date(endDate);
-      const dateTitle = `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+        const metadata: DateIdeaMetadata = {
+          start_date: startDate,
+          end_date: endDate,
+          flexible,
+        };
 
-      await addIdea(tripId, canvasType, {
-        title: dateTitle,
-        description: flexible ? 'Flexible dates' : description,
-        created_by: currentUser.id,
-        metadata,
-      });
-    } else if (isLocationBoard) {
-      if (!title.trim()) return;
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const dateTitle = `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
 
-      await addIdea(tripId, canvasType, {
-        title: title.trim(),
-        description: description.trim(),
-        image_url: imageUrl || getCityImage(title.trim()),
-        created_by: currentUser.id,
-      });
-    } else if (isTransportationBoard) {
-      if (!title.trim()) return;
+        await addIdea(tripId, canvasType, {
+          title: dateTitle,
+          description: flexible ? 'Flexible dates' : description,
+          created_by: currentUser.id,
+          metadata,
+        });
+      } else if (isLocationBoard) {
+        if (!title.trim()) {
+          setIsLoading(false);
+          return;
+        }
 
-      const transportMetadata: TransportationMetadata = {
-        type: transportationType,
-        carrier: carrier.trim() || undefined,
-        price: price ? parseFloat(price) : undefined,
-      };
+        await addIdea(tripId, canvasType, {
+          title: title.trim(),
+          ...(description.trim() && { description: description.trim() }),
+          ...(imageUrl && { image_url: imageUrl }),
+          created_by: currentUser.id,
+        });
+      } else if (isTransportationBoard) {
+        if (!title.trim()) {
+          setIsLoading(false);
+          return;
+        }
 
-      await addIdea(tripId, canvasType, {
-        title: title.trim(),
-        description: description.trim() + (itemDate ? `\n📅 ${new Date(itemDate).toLocaleDateString()}` : ''),
-        image_url: imageUrl || undefined,
-        link_url: linkUrl || undefined,
-        created_by: currentUser.id,
-        metadata: transportMetadata,
-      });
-    } else {
-      if (!title.trim()) return;
+        const transportMetadata: TransportationMetadata = {
+          type: transportationType,
+          carrier: carrier.trim() || undefined,
+          price: price ? parseFloat(price) : undefined,
+        };
 
-      await addIdea(tripId, canvasType, {
-        title: title.trim(),
-        description: description.trim() + (itemDate ? `\n📅 ${new Date(itemDate).toLocaleDateString()}` : ''),
-        image_url: imageUrl || undefined,
-        link_url: linkUrl || undefined,
-        created_by: currentUser.id,
-      });
+        const fullDescription = [
+          description.trim(),
+          itemDate ? `📅 ${new Date(itemDate).toLocaleDateString()}` : '',
+        ].filter(Boolean).join('\n');
+
+        await addIdea(tripId, canvasType, {
+          title: title.trim(),
+          ...(fullDescription && { description: fullDescription }),
+          ...(imageUrl && { image_url: imageUrl }),
+          ...(linkUrl && { link_url: linkUrl }),
+          created_by: currentUser.id,
+          metadata: transportMetadata,
+        });
+      } else {
+        // Standard form for accommodation, activities, food
+        if (!title.trim()) {
+          setIsLoading(false);
+          return;
+        }
+
+        const fullDescription = [
+          description.trim(),
+          itemDate ? `📅 ${new Date(itemDate).toLocaleDateString()}` : '',
+        ].filter(Boolean).join('\n');
+
+        await addIdea(tripId, canvasType, {
+          title: title.trim(),
+          ...(fullDescription && { description: fullDescription }),
+          ...(imageUrl && { image_url: imageUrl }),
+          ...(linkUrl && { link_url: linkUrl }),
+          created_by: currentUser.id,
+        });
+      }
+
+      // Reset form
+      setTitle('');
+      setDescription('');
+      setLinkUrl('');
+      setImageUrl('');
+      setManualImageUrl('');
+      setShowManualImageInput(false);
+      setStartDate('');
+      setEndDate('');
+      setFlexible(false);
+      setCitySearch('');
+      setTransportationType('flight');
+      setCarrier('');
+      setPrice('');
+      setItemDate('');
+      setMapboxResults([]);
+      setShowImagePicker(false);
+      onClose();
+    } catch (error) {
+      console.error('Error adding idea:', error);
+    } finally {
+      setIsLoading(false);
     }
-
-    // Reset form
-    setTitle('');
-    setDescription('');
-    setLinkUrl('');
-    setImageUrl('');
-    setStartDate('');
-    setEndDate('');
-    setFlexible(false);
-    setCitySearch('');
-    setTransportationType('flight');
-    setCarrier('');
-    setPrice('');
-    setItemDate('');
-    setMapboxResults([]);
-    onClose();
   };
 
   const handleUrlPaste = async () => {
@@ -322,7 +353,6 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
     setIsLoading(true);
 
     try {
-      // Use microlink.io for better link previews (free tier available)
       const response = await fetch(
         `https://api.microlink.io/?url=${encodeURIComponent(linkUrl)}`
       );
@@ -336,377 +366,365 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
             setTitle(fetchedTitle);
           }
 
-          if (image?.url) {
+          // Prefer image over logo
+          if (image?.url && !image.url.includes('logo')) {
             setImageUrl(image.url);
           } else if (logo?.url) {
-            setImageUrl(logo.url);
+            // If we only got a logo, don't set it - let user pick from placeholders
+            console.log('Only logo found, skipping image');
           }
         }
-      } else {
-        // Fallback: extract from URL
-        extractFromUrl();
       }
     } catch (error) {
       console.error('Error fetching link preview:', error);
-      extractFromUrl();
     } finally {
       setIsLoading(false);
     }
   };
 
-  const extractFromUrl = () => {
-    try {
-      const url = new URL(linkUrl);
-
-      if (!title) {
-        const pathParts = url.pathname.split('/').filter(Boolean);
-        if (pathParts.length > 0) {
-          const lastPart = pathParts[pathParts.length - 1]
-            .replace(/[-_]/g, ' ')
-            .replace(/\.\w+$/, '')
-            .split(' ')
-            .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-            .join(' ');
-          setTitle(lastPart || url.hostname.replace('www.', ''));
-        } else {
-          setTitle(url.hostname.replace('www.', ''));
-        }
-      }
-
-      const placeholders = PLACEHOLDER_IMAGES[canvasType];
-      if (placeholders.length > 0 && !imageUrl) {
-        setImageUrl(placeholders[Math.floor(Math.random() * placeholders.length)]);
-      }
-    } catch {
-      // Invalid URL
+  const handleManualImageSubmit = () => {
+    if (manualImageUrl.trim()) {
+      setImageUrl(manualImageUrl.trim());
+      setShowManualImageInput(false);
+      setManualImageUrl('');
     }
+  };
+
+  const clearImage = () => {
+    setImageUrl('');
+    setShowImagePicker(false);
   };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title={`Add ${config.label} Idea`} size="lg">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Canvas type indicator */}
-        <div
-          className={`flex items-center gap-3 p-3 rounded-lg ${config.color} bg-opacity-10`}
-        >
-          {IconComponent && (
-            <div className={`p-2 rounded-lg ${config.color}`}>
-              <IconComponent size={20} className="text-white" />
-            </div>
-          )}
-          <div>
-            <p className="font-medium text-gray-800">{config.label}</p>
-            <p className="text-sm text-gray-500">{config.description}</p>
-          </div>
-        </div>
-
-        {isDateBoard ? (
-          // Date-specific form
-          <>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Start Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="input-field"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  End Date <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  min={startDate}
-                  className="input-field"
-                  required
-                />
-              </div>
-            </div>
-
-            <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={flexible}
-                onChange={(e) => setFlexible(e.target.checked)}
-                className="w-4 h-4 text-primary-500 rounded"
-              />
-              <span className="text-sm text-gray-700">These dates are flexible</span>
-            </label>
-
-            {!flexible && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Notes (optional)
-                </label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="input-field min-h-[80px] resize-none"
-                  placeholder="Any reason for these dates? (e.g., long weekend, cheaper flights)"
-                />
+      <form onSubmit={handleSubmit} className="flex flex-col max-h-[70vh]">
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+          {/* Canvas type indicator */}
+          <div className={`flex items-center gap-3 p-3 rounded-lg ${config.color} bg-opacity-10`}>
+            {IconComponent && (
+              <div className={`p-2 rounded-lg ${config.color}`}>
+                <IconComponent size={20} className="text-white" />
               </div>
             )}
-          </>
-        ) : isLocationBoard ? (
-          // Location/City-specific form with Mapbox
-          <>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <span className="flex items-center gap-2">
-                  <MapPin size={16} />
-                  City or Destination <span className="text-red-500">*</span>
-                </span>
+              <p className="font-medium text-gray-800">{config.label}</p>
+              <p className="text-sm text-gray-500">{config.description}</p>
+            </div>
+          </div>
+
+          {isDateBoard ? (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Start Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="input-field"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    End Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    min={startDate}
+                    className="input-field"
+                    required
+                  />
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={flexible}
+                  onChange={(e) => setFlexible(e.target.checked)}
+                  className="w-4 h-4 text-primary-500 rounded"
+                />
+                <span className="text-sm text-gray-700">These dates are flexible</span>
               </label>
-              <div className="relative">
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      value={citySearch}
-                      onChange={(e) => {
-                        setCitySearch(e.target.value);
-                        setShowCitySuggestions(true);
-                        setTitle(e.target.value);
-                      }}
-                      onFocus={() => setShowCitySuggestions(true)}
-                      className="input-field"
-                      placeholder="Search for a city..."
-                      required
-                    />
-                    {showCitySuggestions && citySearch.length >= 2 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-64 overflow-y-auto">
-                        {mapboxResults.length > 0 ? (
-                          mapboxResults.map((result) => (
+
+              {!flexible && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Notes (optional)
+                  </label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="input-field min-h-[60px] resize-none"
+                    placeholder="Any reason for these dates?"
+                  />
+                </div>
+              )}
+            </>
+          ) : isLocationBoard ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <span className="flex items-center gap-2">
+                    <MapPin size={16} />
+                    City or Destination <span className="text-red-500">*</span>
+                  </span>
+                </label>
+                <div className="relative">
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={citySearch}
+                        onChange={(e) => {
+                          setCitySearch(e.target.value);
+                          setShowCitySuggestions(true);
+                          setTitle(e.target.value);
+                        }}
+                        onFocus={() => setShowCitySuggestions(true)}
+                        className="input-field"
+                        placeholder="Search for a city..."
+                        required
+                      />
+                      {showCitySuggestions && citySearch.length >= 2 && (
+                        <div className="absolute z-10 w-full mt-1 bg-white rounded-lg shadow-lg border border-gray-200 max-h-48 overflow-y-auto">
+                          {(mapboxResults.length > 0 ? mapboxResults : filteredLocalDestinations.map((d) => ({
+                            id: d.name,
+                            place_name: `${d.name}, ${d.country}`,
+                            text: d.name,
+                            properties: {},
+                          }))).map((result) => (
                             <button
                               key={result.id}
                               type="button"
                               onClick={() => handleCitySelect(result.text, result.place_name)}
-                              className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0"
+                              className="w-full px-4 py-2 text-left hover:bg-gray-50 flex items-center gap-2"
                             >
-                              <MapPin size={16} className="text-gray-400 flex-shrink-0" />
-                              <div>
-                                <p className="font-medium text-gray-800">{result.text}</p>
-                                <p className="text-xs text-gray-500">{result.place_name}</p>
-                              </div>
+                              <MapPin size={14} className="text-gray-400" />
+                              <span className="text-sm">{result.place_name}</span>
                             </button>
-                          ))
-                        ) : filteredLocalDestinations.length > 0 ? (
-                          filteredLocalDestinations.map((dest) => (
-                            <button
-                              key={dest.name}
-                              type="button"
-                              onClick={() => handleCitySelect(dest.name, `${dest.name}, ${dest.country}`)}
-                              className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 last:border-b-0"
-                            >
-                              <div className="w-12 h-8 rounded overflow-hidden flex-shrink-0">
-                                <img src={dest.image} alt={dest.name} className="w-full h-full object-cover" />
-                              </div>
-                              <div>
-                                <p className="font-medium text-gray-800">{dest.name}</p>
-                                <p className="text-xs text-gray-500">{dest.country}</p>
-                              </div>
-                            </button>
-                          ))
-                        ) : (
-                          <div className="px-4 py-3 text-sm text-gray-500">
-                            {mapboxToken ? 'Searching...' : 'No results found'}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => citySearch && handleCitySelect(citySearch)}
+                      disabled={!citySearch || isLoading}
+                      className="btn-secondary text-sm"
+                    >
+                      {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
+                    </button>
                   </div>
+                </div>
+              </div>
+
+              {!citySearch && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-2">Popular destinations</p>
+                  <div className="grid grid-cols-5 gap-2">
+                    {POPULAR_DESTINATIONS.slice(0, 10).map((dest) => (
+                      <button
+                        key={dest.name}
+                        type="button"
+                        onClick={() => handleCitySelect(dest.name, `${dest.name}, ${dest.country}`)}
+                        className="group relative h-14 rounded-lg overflow-hidden"
+                      >
+                        <img
+                          src={dest.image}
+                          alt={dest.name}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform"
+                        />
+                        <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 flex items-end p-1">
+                          <span className="text-white text-xs font-medium truncate">{dest.name}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {imageUrl && (
+                <div className="relative h-32 rounded-lg overflow-hidden">
+                  <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
                   <button
                     type="button"
-                    onClick={() => citySearch && handleCitySelect(citySearch)}
-                    disabled={!citySearch || isLoading}
-                    className="btn-secondary text-sm flex items-center gap-2"
+                    onClick={clearImage}
+                    className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full hover:bg-black/70"
                   >
-                    {isLoading ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Search size={16} />
-                    )}
+                    <X size={14} />
                   </button>
                 </div>
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                Search for any city worldwide
-              </p>
-            </div>
+              )}
 
-            {/* Popular destinations */}
-            {!citySearch && (
               <div>
-                <p className="text-xs text-gray-500 mb-2">Popular destinations</p>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Why this destination? (optional)
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="input-field min-h-[60px] resize-none"
+                  placeholder="e.g., Great weather, lots of activities..."
+                />
+              </div>
+            </>
+          ) : isTransportationBoard ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Type</label>
                 <div className="grid grid-cols-5 gap-2">
-                  {POPULAR_DESTINATIONS.slice(0, 10).map((dest) => (
-                    <button
-                      key={dest.name}
-                      type="button"
-                      onClick={() => handleCitySelect(dest.name, `${dest.name}, ${dest.country}`)}
-                      className="group relative h-16 rounded-lg overflow-hidden"
-                    >
-                      <img
-                        src={dest.image}
-                        alt={dest.name}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform"
-                      />
-                      <div className="absolute inset-0 bg-black/40 group-hover:bg-black/50 transition-colors flex items-end p-1.5">
-                        <span className="text-white text-xs font-medium truncate">{dest.name}</span>
-                      </div>
-                    </button>
-                  ))}
+                  {TRANSPORTATION_TYPES.map((transport) => {
+                    const TransportIcon = transport.icon;
+                    const isSelected = transportationType === transport.type;
+                    return (
+                      <button
+                        key={transport.type}
+                        type="button"
+                        onClick={() => setTransportationType(transport.type)}
+                        className={`flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all ${
+                          isSelected ? 'border-primary-500 bg-primary-50' : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className={`p-1.5 rounded-lg ${isSelected ? transport.color : 'bg-gray-100'}`}>
+                          <TransportIcon size={16} className={isSelected ? 'text-white' : 'text-gray-500'} />
+                        </div>
+                        <span className={`text-xs ${isSelected ? 'text-primary-700 font-medium' : 'text-gray-600'}`}>
+                          {transport.label.split(' ')[0]}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
-            )}
 
-            {/* Image preview */}
-            {imageUrl && (
-              <div className="relative h-48 rounded-lg overflow-hidden">
-                <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
-                {isLoading && (
-                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                    <Loader2 size={32} className="animate-spin text-white" />
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Title <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="input-field"
+                  placeholder={transportationType === 'flight' ? 'LAX to JFK - Delta' : 'Hertz SUV Rental'}
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {transportationType === 'flight' ? 'Airline' : 'Carrier'}
+                  </label>
+                  <input
+                    type="text"
+                    value={carrier}
+                    onChange={(e) => setCarrier(e.target.value)}
+                    className="input-field"
+                    placeholder="Delta"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                    <input
+                      type="number"
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value)}
+                      className="input-field pl-7"
+                      placeholder="0"
+                      min="0"
+                    />
                   </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setImageUrl('')}
-                  className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70"
-                >
-                  &times;
-                </button>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={itemDate}
+                    onChange={(e) => setItemDate(e.target.value)}
+                    className="input-field"
+                  />
+                </div>
               </div>
-            )}
 
-            {/* Description */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Why this destination? (optional)
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="input-field min-h-[80px] resize-none"
-                placeholder="e.g., Great weather, lots of activities, good food scene..."
-              />
-            </div>
-          </>
-        ) : isTransportationBoard ? (
-          // Transportation-specific form
-          <>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Transportation Type
-              </label>
-              <div className="grid grid-cols-5 gap-2">
-                {TRANSPORTATION_TYPES.map((transport) => {
-                  const TransportIcon = transport.icon;
-                  const isSelected = transportationType === transport.type;
-                  return (
-                    <button
-                      key={transport.type}
-                      type="button"
-                      onClick={() => setTransportationType(transport.type)}
-                      className={`flex flex-col items-center gap-1 p-3 rounded-lg border-2 transition-all ${
-                        isSelected
-                          ? `border-primary-500 bg-primary-50`
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
-                    >
-                      <div className={`p-2 rounded-lg ${isSelected ? transport.color : 'bg-gray-100'}`}>
-                        <TransportIcon size={18} className={isSelected ? 'text-white' : 'text-gray-500'} />
-                      </div>
-                      <span className={`text-xs font-medium ${isSelected ? 'text-primary-700' : 'text-gray-600'}`}>
-                        {transport.label.split(' ')[0]}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <span className="flex items-center gap-2">
-                  <Link size={16} />
-                  Booking Link (optional)
-                </span>
-              </label>
-              <div className="flex gap-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <Link size={14} className="inline mr-1" />
+                  Booking Link
+                </label>
                 <input
                   type="url"
                   value={linkUrl}
                   onChange={(e) => setLinkUrl(e.target.value)}
-                  className="input-field flex-1 min-w-0"
-                  placeholder="https://expedia.com/flights..."
+                  className="input-field"
+                  placeholder="https://expedia.com/..."
                 />
-                <button
-                  type="button"
-                  onClick={handleUrlPaste}
-                  disabled={!linkUrl || isLoading}
-                  className="flex-shrink-0 btn-secondary text-sm flex items-center gap-2"
-                >
-                  {isLoading ? <Loader2 size={16} className="animate-spin" /> : 'Fetch'}
-                </button>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Title <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="input-field"
-                placeholder={`e.g., ${transportationType === 'flight' ? 'LAX to JFK - Delta' : transportationType === 'car' ? 'Hertz SUV Rental' : 'Train to destination'}`}
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="input-field min-h-[50px] resize-none"
+                  placeholder="Flight times, connection info..."
+                />
+              </div>
+            </>
+          ) : (
+            // Standard form for accommodation, activities, food
+            <>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {transportationType === 'flight' ? 'Airline' : 'Carrier'} (opt)
+                  <Link size={14} className="inline mr-1" />
+                  Link (optional)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={linkUrl}
+                    onChange={(e) => setLinkUrl(e.target.value)}
+                    className="input-field flex-1"
+                    placeholder="https://expedia.com/..."
+                  />
+                  <button
+                    type="button"
+                    onClick={handleUrlPaste}
+                    disabled={!linkUrl || isLoading}
+                    className="btn-secondary text-sm"
+                  >
+                    {isLoading ? <Loader2 size={16} className="animate-spin" /> : 'Fetch'}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Title <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  value={carrier}
-                  onChange={(e) => setCarrier(e.target.value)}
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
                   className="input-field"
-                  placeholder="e.g., Delta"
+                  placeholder={canvasType === 'accommodation' ? 'Beach Resort' : canvasType === 'food' ? 'Local Restaurant' : 'Fun Activity'}
+                  required
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Price (opt)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
-                  <input
-                    type="number"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    className="input-field pl-7"
-                    placeholder="0"
-                    min="0"
-                  />
-                </div>
-              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   <Calendar size={14} className="inline mr-1" />
-                  Date (opt)
+                  Date (optional)
                 </label>
                 <input
                   type="date"
@@ -715,165 +733,113 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
                   className="input-field"
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Notes (optional)
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="input-field min-h-[60px] resize-none"
-                placeholder="Flight times, connection info, etc..."
-              />
-            </div>
-
-            {imageUrl && (
-              <div className="relative h-32 rounded-lg overflow-hidden">
-                <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
-                <button
-                  type="button"
-                  onClick={() => setImageUrl('')}
-                  className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70"
-                >
-                  &times;
-                </button>
-              </div>
-            )}
-          </>
-        ) : (
-          // Standard form for accommodation, activities, food
-          <>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <span className="flex items-center gap-2">
-                  <Link size={16} />
-                  Link (optional)
-                </span>
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={linkUrl}
-                  onChange={(e) => setLinkUrl(e.target.value)}
-                  className="input-field flex-1 min-w-0"
-                  placeholder="https://expedia.com/..."
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="input-field min-h-[60px] resize-none"
+                  placeholder="Add details..."
                 />
-                <button
-                  type="button"
-                  onClick={handleUrlPaste}
-                  disabled={!linkUrl || isLoading}
-                  className="flex-shrink-0 btn-secondary text-sm flex items-center gap-2"
-                >
-                  {isLoading ? <Loader2 size={16} className="animate-spin" /> : 'Fetch'}
-                </button>
               </div>
-              <p className="text-xs text-gray-400 mt-1">
-                Paste a link and click Fetch to auto-populate title & image
-              </p>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Title <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="input-field"
-                placeholder={`e.g., ${canvasType === 'accommodation' ? 'Beautiful beach resort' : canvasType === 'food' ? 'Amazing local restaurant' : 'Exciting activity'}`}
-                required
-              />
-            </div>
+              {/* Image section - compact */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <ImageIcon size={14} className="inline mr-1" />
+                  Image (optional)
+                </label>
 
-            {/* Date field for activities, food, accommodation */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                <span className="flex items-center gap-2">
-                  <Calendar size={16} />
-                  Date (optional)
-                </span>
-              </label>
-              <input
-                type="date"
-                value={itemDate}
-                onChange={(e) => setItemDate(e.target.value)}
-                className="input-field"
-              />
-              <p className="text-xs text-gray-400 mt-1">
-                When do you plan to do this?
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Description
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="input-field min-h-[80px] resize-none"
-                placeholder="Add more details about your idea..."
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Image
-              </label>
-
-              {imageUrl ? (
-                <div className="relative h-40 rounded-lg overflow-hidden mb-2">
-                  <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => setImageUrl('')}
-                    className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full hover:bg-black/70"
-                  >
-                    &times;
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setShowImagePicker(!showImagePicker)}
-                  className="w-full py-8 border-2 border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-primary-400 hover:text-primary-500 transition-colors"
-                >
-                  Click to choose an image
-                </button>
-              )}
-
-              {showImagePicker && PLACEHOLDER_IMAGES[canvasType].length > 0 && (
-                <div className="mt-2 grid grid-cols-4 gap-2">
-                  {PLACEHOLDER_IMAGES[canvasType].map((url, idx) => (
+                {imageUrl ? (
+                  <div className="relative h-28 rounded-lg overflow-hidden">
+                    <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                    <div className="absolute top-2 right-2 flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowManualImageInput(true)}
+                        className="p-1 bg-black/50 text-white rounded-full hover:bg-black/70"
+                        title="Change image"
+                      >
+                        <ImageIcon size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearImage}
+                        className="p-1 bg-black/50 text-white rounded-full hover:bg-black/70"
+                        title="Remove image"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
                     <button
-                      key={idx}
                       type="button"
-                      onClick={() => {
-                        setImageUrl(url);
-                        setShowImagePicker(false);
-                      }}
-                      className={`h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                        imageUrl === url ? 'border-primary-500' : 'border-transparent hover:border-gray-300'
-                      }`}
+                      onClick={() => setShowImagePicker(!showImagePicker)}
+                      className="flex-1 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-primary-400 hover:text-primary-500 text-sm"
                     >
-                      <img src={url} alt="" className="w-full h-full object-cover" />
+                      Choose from gallery
                     </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </>
-        )}
+                    <button
+                      type="button"
+                      onClick={() => setShowManualImageInput(true)}
+                      className="px-3 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-primary-400 hover:text-primary-500"
+                      title="Enter image URL"
+                    >
+                      <Link size={16} />
+                    </button>
+                  </div>
+                )}
 
-        {/* Actions */}
-        <div className="flex justify-end gap-3 pt-4">
+                {showManualImageInput && (
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      type="url"
+                      value={manualImageUrl}
+                      onChange={(e) => setManualImageUrl(e.target.value)}
+                      className="input-field flex-1 text-sm"
+                      placeholder="Paste image URL..."
+                    />
+                    <button type="button" onClick={handleManualImageSubmit} className="btn-secondary text-sm">
+                      Set
+                    </button>
+                    <button type="button" onClick={() => setShowManualImageInput(false)} className="btn-secondary text-sm">
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {showImagePicker && PLACEHOLDER_IMAGES[canvasType].length > 0 && (
+                  <div className="mt-2 grid grid-cols-4 gap-2">
+                    {PLACEHOLDER_IMAGES[canvasType].map((url, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          setImageUrl(url);
+                          setShowImagePicker(false);
+                        }}
+                        className="h-16 rounded-lg overflow-hidden border-2 border-transparent hover:border-primary-500"
+                      >
+                        <img src={url} alt="" className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Fixed footer with actions */}
+        <div className="flex justify-end gap-3 pt-4 mt-4 border-t border-gray-100">
           <button type="button" onClick={onClose} className="btn-secondary">
             Cancel
           </button>
-          <button type="submit" className="btn-primary">
+          <button type="submit" disabled={isLoading} className="btn-primary flex items-center gap-2">
+            {isLoading && <Loader2 size={16} className="animate-spin" />}
             Add Idea
           </button>
         </div>

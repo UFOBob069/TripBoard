@@ -65,7 +65,7 @@ export interface Idea {
   canvas_type: CanvasType;
   trip_id: string;
   title: string;
-  description: string;
+  description?: string;
   image_url?: string;
   link_url?: string;
   created_by: string;

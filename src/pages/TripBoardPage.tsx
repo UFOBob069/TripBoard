@@ -14,6 +14,7 @@ import {
   Check,
   Crown,
   Activity,
+  X,
 } from 'lucide-react';
 import { useTripStore } from '../store/tripStore';
 import { Header } from '../components/layout/Header';
@@ -45,7 +46,7 @@ const canvasTypes: CanvasType[] = [
 export function TripBoardPage() {
   const [showFinalPlan, setShowFinalPlan] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
-  const [showActivityPanel, setShowActivityPanel] = useState(false);
+  const [showActivityPanel, setShowActivityPanel] = useState(true); // Default open
   const [copiedLink, setCopiedLink] = useState(false);
 
   const {
@@ -183,10 +184,10 @@ export function TripBoardPage() {
               </div>
             )}
 
-            {/* Activity button */}
+            {/* Activity button - only show on mobile or when panel is closed */}
             <button
               onClick={() => setShowActivityPanel(!showActivityPanel)}
-              className={`p-2 rounded-lg transition-colors ${
+              className={`p-2 rounded-lg transition-colors lg:hidden ${
                 showActivityPanel ? 'bg-primary-100 text-primary-600' : 'hover:bg-gray-100 text-gray-600'
               }`}
               title="Recent Activity"
@@ -236,7 +237,7 @@ export function TripBoardPage() {
                       className={isActive ? 'text-white' : 'text-gray-500'}
                     />
                   </div>
-                  <span className="font-medium text-sm">{config.label}</span>
+                  <span className="font-medium text-sm hidden sm:inline">{config.label}</span>
                   <div className="flex items-center gap-1">
                     {status.locked && (
                       <Lock size={12} className="text-gray-400" />
@@ -269,8 +270,31 @@ export function TripBoardPage() {
 
       {/* Main content area */}
       <div className="flex-1 flex overflow-hidden">
+        {/* Activity panel - LEFT SIDE, default open on desktop */}
+        <div
+          className={`hidden lg:flex flex-col w-72 bg-white border-r border-gray-200 transition-all ${
+            showActivityPanel ? '' : 'lg:hidden'
+          }`}
+        >
+          <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+            <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+              <Activity size={18} />
+              Recent Activity
+            </h3>
+            <button
+              onClick={() => setShowActivityPanel(false)}
+              className="p-1 hover:bg-gray-100 rounded text-gray-400 hover:text-gray-600"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <ActivityFeed tripId={trip.id} limit={50} />
+          </div>
+        </div>
+
         {/* Main content */}
-        <main className={`flex-1 overflow-hidden p-4 sm:p-6 transition-all ${showActivityPanel ? 'lg:mr-80' : ''}`}>
+        <main className="flex-1 overflow-hidden p-4 sm:p-6">
           {showFinalPlan ? (
             <FinalPlan tripId={trip.id} users={users} onNavigateToBoard={handleNavigateToBoard} />
           ) : (
@@ -282,21 +306,21 @@ export function TripBoardPage() {
           )}
         </main>
 
-        {/* Activity panel - slides in from right */}
+        {/* Mobile activity panel - slides in from right */}
         <div
-          className={`fixed lg:absolute right-0 top-0 h-full w-80 bg-white border-l border-gray-200 shadow-lg lg:shadow-none transform transition-transform z-40 ${
+          className={`fixed lg:hidden right-0 top-0 h-full w-80 bg-white border-l border-gray-200 shadow-lg transform transition-transform z-40 ${
             showActivityPanel ? 'translate-x-0' : 'translate-x-full'
           }`}
-          style={{ top: 'inherit', height: 'calc(100vh - var(--header-offset, 180px))' }}
+          style={{ top: '120px', height: 'calc(100vh - 120px)' }}
         >
           <div className="h-full flex flex-col">
             <div className="p-4 border-b border-gray-100 flex items-center justify-between">
               <h3 className="font-semibold text-gray-800">Recent Activity</h3>
               <button
                 onClick={() => setShowActivityPanel(false)}
-                className="p-1 hover:bg-gray-100 rounded lg:hidden"
+                className="p-1 hover:bg-gray-100 rounded"
               >
-                &times;
+                <X size={18} />
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
@@ -314,18 +338,18 @@ export function TripBoardPage() {
         )}
       </div>
 
-      {/* Share Modal */}
+      {/* Share Modal - simplified */}
       <Modal
         isOpen={showShareModal}
         onClose={() => setShowShareModal(false)}
         title="Invite Friends"
       >
         <div className="space-y-4">
-          <p className="text-gray-600">
-            Share this link with friends to invite them to plan the trip together.
+          <p className="text-gray-600 text-sm">
+            Share this link with friends to invite them to the trip.
           </p>
 
-          {/* Share link */}
+          {/* Share link input */}
           <div className="flex gap-2">
             <input
               type="text"
@@ -335,34 +359,21 @@ export function TripBoardPage() {
             />
             <button
               onClick={copyInviteLink}
-              className="btn-secondary flex items-center gap-2"
+              className="btn-secondary flex items-center gap-2 flex-shrink-0"
             >
-              {copiedLink ? (
-                <>
-                  <Check size={16} className="text-green-500" />
-                  Copied
-                </>
-              ) : (
-                <>
-                  <Copy size={16} />
-                  Copy
-                </>
-              )}
+              {copiedLink ? <Check size={16} className="text-green-500" /> : <Copy size={16} />}
+              {copiedLink ? 'Copied!' : 'Copy'}
             </button>
           </div>
 
-          {/* Share button */}
+          {/* Share button for mobile */}
           <button
             onClick={shareInvite}
             className="w-full btn-primary flex items-center justify-center gap-2"
           >
             <Share2 size={18} />
-            Share Invite Link
+            Share
           </button>
-
-          <div className="text-center text-sm text-gray-500">
-            or share code: <span className="font-mono font-bold">{trip.invite_code}</span>
-          </div>
         </div>
       </Modal>
     </div>

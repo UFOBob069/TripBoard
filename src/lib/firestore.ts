@@ -187,6 +187,12 @@ export const deleteTrip = async (tripId: string, userId: string): Promise<boolea
   return true;
 };
 
+// Update trip cover image
+export const updateTripCover = async (tripId: string, coverImageUrl: string): Promise<void> => {
+  const tripRef = doc(db, TRIPS_COLLECTION, tripId);
+  await updateDoc(tripRef, { cover_image: coverImageUrl });
+};
+
 // Update trip status
 export const updateTripStatus = async (
   tripId: string,

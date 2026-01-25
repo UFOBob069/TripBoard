@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   Map,
   Plus,
@@ -11,6 +11,9 @@ import {
   Share2,
   Trash2,
   MoreVertical,
+  Upload,
+  Loader2,
+  X,
 } from 'lucide-react';
 import { useTripStore } from '../store/tripStore';
 import { Modal } from '../components/common/Modal';
@@ -18,6 +21,8 @@ import { AvatarGroup } from '../components/common/Avatar';
 import { Header } from '../components/layout/Header';
 import type { CanvasType } from '../types';
 import { TRIP_STATUS_CONFIG } from '../types';
+import { uploadTripCoverPhoto } from '../lib/storage';
+import { updateTripCover as firestoreUpdateTripCover } from '../lib/firestore';
 
 const COVER_IMAGES = [
   'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800',
@@ -36,12 +41,17 @@ export function TripsPage() {
   const [tripName, setTripName] = useState('');
   const [tripDescription, setTripDescription] = useState('');
   const [coverImage, setCoverImage] = useState(COVER_IMAGES[0]);
+  const [customCoverFile, setCustomCoverFile] = useState<File | null>(null);
+  const [customCoverPreview, setCustomCoverPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [joinError, setJoinError] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   const [tripMenuOpen, setTripMenuOpen] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const {
     trips,
@@ -60,11 +70,69 @@ export function TripsPage() {
   const handleCreateTrip = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tripName.trim()) return;
-    await createTrip(tripName.trim(), tripDescription.trim(), coverImage);
-    setTripName('');
-    setTripDescription('');
-    setCoverImage(COVER_IMAGES[0]);
-    setShowCreateModal(false);
+
+    setIsUploading(true);
+    try {
+      // Create trip first (with preset or placeholder image)
+      const trip = await createTrip(
+        tripName.trim(),
+        tripDescription.trim(),
+        customCoverFile ? undefined : coverImage
+      );
+
+      // If custom cover photo was selected, upload it and update the trip
+      if (trip && customCoverFile) {
+        try {
+          const uploadedUrl = await uploadTripCoverPhoto(trip.id, customCoverFile);
+          // Update the trip with the uploaded cover image
+          await firestoreUpdateTripCover(trip.id, uploadedUrl);
+        } catch (uploadError) {
+          console.error('Error uploading cover photo:', uploadError);
+          // Trip was created, just cover upload failed - that's okay
+        }
+      }
+
+      // Reset form
+      setTripName('');
+      setTripDescription('');
+      setCoverImage(COVER_IMAGES[0]);
+      setCustomCoverFile(null);
+      setCustomCoverPreview(null);
+      setShowCreateModal(false);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select an image file');
+        return;
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image must be less than 5MB');
+        return;
+      }
+      setCustomCoverFile(file);
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setCustomCoverPreview(previewUrl);
+    }
+  };
+
+  const clearCustomCover = () => {
+    setCustomCoverFile(null);
+    if (customCoverPreview) {
+      URL.revokeObjectURL(customCoverPreview);
+      setCustomCoverPreview(null);
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleJoinTrip = async (e: React.FormEvent) => {
@@ -432,26 +500,72 @@ export function TripsPage() {
                 Cover Image
               </span>
             </label>
-            <div className="grid grid-cols-4 gap-2">
-              {COVER_IMAGES.map((url, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => setCoverImage(url)}
-                  className={`h-20 rounded-lg overflow-hidden border-2 transition-all ${
-                    coverImage === url
-                      ? 'border-primary-500 ring-2 ring-primary-200'
-                      : 'border-transparent hover:border-gray-300'
-                  }`}
-                >
+
+            {/* Custom cover preview */}
+            {customCoverPreview ? (
+              <div className="relative mb-3">
+                <div className="h-32 rounded-lg overflow-hidden">
                   <img
-                    src={url}
-                    alt=""
+                    src={customCoverPreview}
+                    alt="Custom cover"
                     className="w-full h-full object-cover"
                   />
+                </div>
+                <button
+                  type="button"
+                  onClick={clearCustomCover}
+                  className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full hover:bg-black/70"
+                >
+                  <X size={16} />
                 </button>
-              ))}
-            </div>
+                <p className="text-xs text-gray-500 mt-1">Custom cover photo selected</p>
+              </div>
+            ) : (
+              <>
+                {/* Upload button */}
+                <div className="mb-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-primary-400 hover:text-primary-500 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Upload size={18} />
+                    Upload custom cover photo
+                  </button>
+                  <p className="text-xs text-gray-400 mt-1 text-center">Max 5MB. JPG, PNG, or WebP</p>
+                </div>
+
+                {/* Preset images */}
+                <p className="text-xs text-gray-500 mb-2">Or choose from presets:</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {COVER_IMAGES.map((url, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setCoverImage(url)}
+                      className={`h-20 rounded-lg overflow-hidden border-2 transition-all ${
+                        coverImage === url
+                          ? 'border-primary-500 ring-2 ring-primary-200'
+                          : 'border-transparent hover:border-gray-300'
+                      }`}
+                    >
+                      <img
+                        src={url}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -465,11 +579,17 @@ export function TripsPage() {
               type="button"
               onClick={() => setShowCreateModal(false)}
               className="btn-secondary"
+              disabled={isUploading}
             >
               Cancel
             </button>
-            <button type="submit" className="btn-primary">
-              Create Trip
+            <button
+              type="submit"
+              className="btn-primary flex items-center gap-2"
+              disabled={isUploading}
+            >
+              {isUploading && <Loader2 size={16} className="animate-spin" />}
+              {isUploading ? 'Creating...' : 'Create Trip'}
             </button>
           </div>
         </form>
