@@ -34,9 +34,10 @@ interface SidebarProps {
   onShowFinalPlan: () => void;
   showingFinalPlan: boolean;
   onBack: () => void;
+  onCanvasSelect?: () => void;
 }
 
-export function Sidebar({ onShowFinalPlan, showingFinalPlan, onBack }: SidebarProps) {
+export function Sidebar({ onShowFinalPlan, showingFinalPlan, onBack, onCanvasSelect }: SidebarProps) {
   const [showActivity, setShowActivity] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -86,7 +87,7 @@ export function Sidebar({ onShowFinalPlan, showingFinalPlan, onBack }: SidebarPr
   };
 
   return (
-    <aside className="w-72 bg-white border-r border-gray-200 flex flex-col">
+    <aside className="w-72 h-full bg-white border-r border-gray-200 flex flex-col overflow-hidden">
       {/* Back button */}
       <div className="p-4 border-b border-gray-100">
         <button
@@ -179,6 +180,7 @@ export function Sidebar({ onShowFinalPlan, showingFinalPlan, onBack }: SidebarPr
                 if (showingFinalPlan) {
                   onShowFinalPlan();
                 }
+                onCanvasSelect?.();
               }}
               className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${
                 isActive

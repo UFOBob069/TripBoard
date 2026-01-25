@@ -82,6 +82,40 @@
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1rem;
   }
+
+  /* Mobile responsive masonry grid */
+  @media (max-width: 640px) {
+    .masonry-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+}
+
+/* Mobile-specific utilities */
+@layer utilities {
+  /* Hide scrollbar on mobile for cleaner look */
+  .mobile-scroll-hidden {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  @media (max-width: 640px) {
+    .mobile-scroll-hidden::-webkit-scrollbar {
+      display: none;
+    }
+    .mobile-scroll-hidden {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  }
+
+  /* Safe area insets for notched devices */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
 }
 
 @layer utilities {

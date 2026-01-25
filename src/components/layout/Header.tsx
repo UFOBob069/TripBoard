@@ -19,16 +19,16 @@ export function Header() {
   };
 
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-4">
+    <header className="bg-white border-b border-gray-200 px-3 sm:px-6 py-3 sm:py-4">
       <div className="flex items-center justify-between max-w-7xl mx-auto">
         {/* Logo */}
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary-500 rounded-xl">
-            <Map size={24} className="text-white" />
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="p-1.5 sm:p-2 bg-primary-500 rounded-lg sm:rounded-xl">
+            <Map size={20} className="text-white sm:w-6 sm:h-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-800">TripBoard</h1>
-            <p className="text-xs text-gray-500">Plan together, travel together</p>
+            <h1 className="text-lg sm:text-xl font-bold text-gray-800">TripBoard</h1>
+            <p className="text-xs text-gray-500 hidden sm:block">Plan together, travel together</p>
           </div>
         </div>
 
@@ -37,13 +37,13 @@ export function Header() {
           <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <Avatar user={currentUser} size="md" />
-              <span className="font-medium text-gray-700">{currentUser.name}</span>
+              <span className="font-medium text-gray-700 hidden sm:block">{currentUser.name}</span>
               <ChevronDown
                 size={16}
-                className={`text-gray-400 transition-transform ${
+                className={`text-gray-400 transition-transform hidden sm:block ${
                   showUserMenu ? 'rotate-180' : ''
                 }`}
               />

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Filter, SortAsc, Lock } from 'lucide-react';
+import { Plus, Lock } from 'lucide-react';
 import type { CanvasType, Idea, User } from '../../types';
 import { CANVAS_CONFIG } from '../../types';
 import { useTripStore } from '../../store/tripStore';
@@ -67,10 +67,10 @@ export function Canvas({ tripId, canvasType, users }: CanvasProps) {
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold text-gray-800">{config.label}</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800">{config.label}</h2>
             {isLocked && (
               <span className="flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 rounded-full text-xs">
                 <Lock size={12} />
@@ -78,52 +78,47 @@ export function Canvas({ tripId, canvasType, users }: CanvasProps) {
               </span>
             )}
           </div>
-          <p className="text-gray-500">{config.description}</p>
+          <p className="text-sm sm:text-base text-gray-500">{config.description}</p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           {/* Votes remaining indicator */}
           <div className="text-sm text-gray-500">
             <span className="font-medium text-primary-600">{votesRemaining}</span> votes left
           </div>
 
           {/* Sort dropdown */}
-          <div className="flex items-center gap-2">
-            <SortAsc size={16} className="text-gray-400" />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="votes">Top Voted</option>
-              <option value="newest">Newest</option>
-              <option value="oldest">Oldest</option>
-            </select>
-          </div>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortOption)}
+            className="text-sm border border-gray-200 rounded-lg px-2 sm:px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="votes">Top Voted</option>
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+          </select>
 
           {/* Filter dropdown */}
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-gray-400" />
-            <select
-              value={filterBy}
-              onChange={(e) => setFilterBy(e.target.value as FilterOption)}
-              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
-            >
-              <option value="all">All Ideas</option>
-              <option value="open">Open</option>
-              <option value="shortlisted">Shortlisted</option>
-              <option value="selected">Selected</option>
-            </select>
-          </div>
+          <select
+            value={filterBy}
+            onChange={(e) => setFilterBy(e.target.value as FilterOption)}
+            className="text-sm border border-gray-200 rounded-lg px-2 sm:px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="all">All</option>
+            <option value="open">Open</option>
+            <option value="shortlisted">Shortlisted</option>
+            <option value="selected">Selected</option>
+          </select>
 
           {/* Add button */}
           {canAddIdea && (
             <button
               onClick={() => setShowAddModal(true)}
-              className="btn-primary flex items-center gap-2"
+              className="btn-primary flex items-center gap-2 text-sm sm:text-base"
             >
               <Plus size={18} />
-              Add Idea
+              <span className="hidden sm:inline">Add Idea</span>
+              <span className="sm:hidden">Add</span>
             </button>
           )}
         </div>

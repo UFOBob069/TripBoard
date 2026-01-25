@@ -158,63 +158,62 @@ export function LoginPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-600 via-primary-500 to-accent-500">
       {/* Hero Section */}
-      <div className="max-w-7xl mx-auto px-4 py-8 lg:py-16">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:py-8 lg:py-16">
+        <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
           {/* Left side - Hero content */}
-          <div className="text-white space-y-8">
+          <div className="text-white space-y-6 sm:space-y-8">
             <div className="flex items-center gap-3">
-              <div className="p-3 bg-white/20 backdrop-blur rounded-xl">
-                <Map size={32} className="text-white" />
+              <div className="p-2 sm:p-3 bg-white/20 backdrop-blur rounded-xl">
+                <Map size={28} className="text-white sm:w-8 sm:h-8" />
               </div>
               <div>
-                <h1 className="text-3xl font-bold">TripBoard</h1>
-                <p className="text-white/80">Plan together, travel together</p>
+                <h1 className="text-2xl sm:text-3xl font-bold">TripBoard</h1>
+                <p className="text-white/80 text-sm sm:text-base">Plan together, travel together</p>
               </div>
             </div>
 
-            <h2 className="text-4xl lg:text-5xl font-bold leading-tight">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold leading-tight">
               Group trips planned.
               <span className="text-white/80 block">Without the group chat chaos.</span>
             </h2>
 
-            <p className="text-xl text-white/90">
+            <p className="text-base sm:text-xl text-white/90">
               Stop drowning in "where should we stay?" texts. TripBoard gives everyone a place
-              to share ideas, vote on favorites, and actually make decisions—so you spend less
-              time planning and more time packing.
+              to share ideas, vote on favorites, and actually make decisions.
             </p>
 
             {/* Stats */}
-            <div className="flex items-center gap-8 pt-4">
+            <div className="flex items-center justify-between sm:justify-start sm:gap-8 pt-4">
               {stats.map((stat, idx) => (
                 <div key={idx} className="text-center">
                   <div className="flex items-center justify-center gap-1">
-                    <span className="text-2xl font-bold">{stat.value}</span>
-                    {stat.icon && <stat.icon size={16} className="text-yellow-300 fill-yellow-300" />}
+                    <span className="text-xl sm:text-2xl font-bold">{stat.value}</span>
+                    {stat.icon && <stat.icon size={14} className="text-yellow-300 fill-yellow-300 sm:w-4 sm:h-4" />}
                   </div>
-                  <p className="text-sm text-white/70">{stat.label}</p>
+                  <p className="text-xs sm:text-sm text-white/70">{stat.label}</p>
                 </div>
               ))}
             </div>
 
             {/* Trust signals */}
-            <div className="flex items-center gap-6 pt-4 border-t border-white/20">
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6 pt-4 border-t border-white/20">
               <div className="flex items-center gap-2 text-white/80">
-                <Shield size={18} />
-                <span className="text-sm">Free to use</span>
+                <Shield size={16} />
+                <span className="text-xs sm:text-sm">Free to use</span>
               </div>
               <div className="flex items-center gap-2 text-white/80">
-                <Zap size={18} />
-                <span className="text-sm">Real-time sync</span>
+                <Zap size={16} />
+                <span className="text-xs sm:text-sm">Real-time sync</span>
               </div>
               <div className="flex items-center gap-2 text-white/80">
-                <CheckCircle size={18} />
-                <span className="text-sm">Works on any device</span>
+                <CheckCircle size={16} />
+                <span className="text-xs sm:text-sm">Any device</span>
               </div>
             </div>
           </div>
 
           {/* Right side - Auth form */}
-          <div className="bg-white rounded-2xl shadow-2xl p-8">
+          <div className="bg-white rounded-2xl shadow-2xl p-5 sm:p-8">
             <h3 className="text-2xl font-bold text-gray-800 mb-2">
               {isSignUp ? 'Create Account' : 'Welcome Back'}
             </h3>
