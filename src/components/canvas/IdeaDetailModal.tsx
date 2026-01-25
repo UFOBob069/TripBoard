@@ -14,6 +14,7 @@ import type { Idea, User } from '../../types';
 import { useTripStore } from '../../store/tripStore';
 import { Avatar } from '../common/Avatar';
 import { formatDistanceToNow } from 'date-fns';
+import { toDate } from '../../lib/dateUtils';
 
 interface IdeaDetailModalProps {
   idea: Idea | null;
@@ -134,7 +135,7 @@ export function IdeaDetailModal({ idea, users, onClose }: IdeaDetailModalProps) 
         <div className="flex items-center gap-3 py-3 border-t border-b border-gray-100">
           {author && <Avatar user={author} size="md" showName />}
           <span className="text-sm text-gray-400">
-            added {formatDistanceToNow(new Date(idea.created_at), { addSuffix: true })}
+            added {formatDistanceToNow(toDate(idea.created_at), { addSuffix: true })}
           </span>
         </div>
 
@@ -236,7 +237,7 @@ export function IdeaDetailModal({ idea, users, onClose }: IdeaDetailModalProps) 
                           {commentAuthor?.name}
                         </span>
                         <span className="text-xs text-gray-400">
-                          {formatDistanceToNow(new Date(comment.timestamp), {
+                          {formatDistanceToNow(toDate(comment.timestamp), {
                             addSuffix: true,
                           })}
                         </span>

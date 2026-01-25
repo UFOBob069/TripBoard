@@ -10,6 +10,7 @@ import type {
   Activity,
 } from '../types';
 import * as firestoreService from '../lib/firestore';
+import { toDate } from '../lib/dateUtils';
 
 interface TripState {
   // Current user
@@ -488,7 +489,7 @@ export const useTripStore = create<TripState>()((set, get) => ({
     if (!trip) return [];
 
     return [...trip.activities]
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .sort((a, b) => toDate(b.timestamp).getTime() - toDate(a.timestamp).getTime())
       .slice(0, limit);
   },
 }));

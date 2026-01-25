@@ -13,6 +13,7 @@ import type { Idea, User } from '../../types';
 import { useTripStore } from '../../store/tripStore';
 import { Avatar } from '../common/Avatar';
 import { formatDistanceToNow } from 'date-fns';
+import { toDate } from '../../lib/dateUtils';
 
 interface IdeaCardProps {
   idea: Idea;
@@ -153,7 +154,7 @@ export function IdeaCard({ idea, users, onOpenDetail }: IdeaCardProps) {
           {author && <Avatar user={author} size="sm" />}
           <span className="text-xs text-gray-500">
             {author?.name} &middot;{' '}
-            {formatDistanceToNow(new Date(idea.created_at), { addSuffix: true })}
+            {formatDistanceToNow(toDate(idea.created_at), { addSuffix: true })}
           </span>
         </div>
 
@@ -273,7 +274,7 @@ export function IdeaCard({ idea, users, onOpenDetail }: IdeaCardProps) {
                             {commentAuthor?.name}
                           </span>
                           <span className="text-xs text-gray-400">
-                            {formatDistanceToNow(new Date(comment.timestamp), {
+                            {formatDistanceToNow(toDate(comment.timestamp), {
                               addSuffix: true,
                             })}
                           </span>

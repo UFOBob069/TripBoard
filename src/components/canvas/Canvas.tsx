@@ -6,6 +6,7 @@ import { useTripStore } from '../../store/tripStore';
 import { IdeaCard } from './IdeaCard';
 import { AddIdeaModal } from './AddIdeaModal';
 import { IdeaDetailModal } from './IdeaDetailModal';
+import { toDate } from '../../lib/dateUtils';
 
 interface CanvasProps {
   tripId: string;
@@ -49,12 +50,12 @@ export function Canvas({ tripId, canvasType, users }: CanvasProps) {
       break;
     case 'newest':
       ideas.sort(
-        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        (a, b) => toDate(b.created_at).getTime() - toDate(a.created_at).getTime()
       );
       break;
     case 'oldest':
       ideas.sort(
-        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        (a, b) => toDate(a.created_at).getTime() - toDate(b.created_at).getTime()
       );
       break;
   }

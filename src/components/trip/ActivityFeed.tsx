@@ -13,6 +13,7 @@ import {
 import { useTripStore } from '../../store/tripStore';
 import { Avatar } from '../common/Avatar';
 import type { ActivityType } from '../../types';
+import { toDate } from '../../lib/dateUtils';
 
 const ACTIVITY_ICONS: Record<ActivityType, typeof Plus> = {
   trip_created: Sparkles,
@@ -73,7 +74,7 @@ export function ActivityFeed({ tripId, limit = 20, compact = false }: ActivityFe
               <div className="flex-1 min-w-0">
                 <p className="text-gray-600 truncate">{activity.message}</p>
                 <p className="text-xs text-gray-400">
-                  {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
+                  {formatDistanceToNow(toDate(activity.timestamp), { addSuffix: true })}
                 </p>
               </div>
             </div>
@@ -97,7 +98,7 @@ export function ActivityFeed({ tripId, limit = 20, compact = false }: ActivityFe
               </div>
               <p className="text-sm text-gray-600">{activity.message}</p>
               <p className="text-xs text-gray-400 mt-1">
-                {formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}
+                {formatDistanceToNow(toDate(activity.timestamp), { addSuffix: true })}
               </p>
             </div>
           </div>
