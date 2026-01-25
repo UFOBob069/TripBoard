@@ -14,6 +14,8 @@ import {
   Upload,
   Loader2,
   X,
+  Globe,
+  Lock,
 } from 'lucide-react';
 import { useTripStore } from '../store/tripStore';
 import { Modal } from '../components/common/Modal';
@@ -44,6 +46,7 @@ export function TripsPage() {
   const [customCoverPreview, setCustomCoverPreview] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
   const [inviteCode, setInviteCode] = useState('');
   const [joinError, setJoinError] = useState('');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -97,7 +100,8 @@ export function TripsPage() {
       const trip = await createTrip(
         tripName.trim(),
         tripDescription.trim(),
-        finalCoverImage
+        finalCoverImage,
+        isPublic
       );
 
       if (!trip) {
@@ -113,6 +117,7 @@ export function TripsPage() {
       setCustomCoverFile(null);
       setCustomCoverPreview(null);
       setCreateError('');
+      setIsPublic(false);
       setShowCreateModal(false);
     } catch (error) {
       console.error('Error creating trip:', error);
@@ -355,12 +360,20 @@ export function TripsPage() {
                       </div>
                     )}
 
-                    {/* Status badge */}
-                    <div
-                      className={`absolute top-3 left-3 flex items-center gap-1 px-2 py-1 ${statusConfig.color} text-white text-xs font-medium rounded-full`}
-                    >
-                      {trip.status === 'finalized' && <CheckCircle size={12} />}
-                      {statusConfig.label}
+                    {/* Status and privacy badges */}
+                    <div className="absolute top-3 left-3 flex items-center gap-2">
+                      <div
+                        className={`flex items-center gap-1 px-2 py-1 ${statusConfig.color} text-white text-xs font-medium rounded-full`}
+                      >
+                        {trip.status === 'finalized' && <CheckCircle size={12} />}
+                        {statusConfig.label}
+                      </div>
+                      {trip.isPublic && (
+                        <div className="flex items-center gap-1 px-2 py-1 bg-green-500 text-white text-xs font-medium rounded-full">
+                          <Globe size={12} />
+                          Public
+                        </div>
+                      )}
                     </div>
 
                     {/* Owner badge & menu */}
@@ -584,6 +597,42 @@ export function TripsPage() {
                 </div>
               </>
             )}
+          </div>
+
+          {/* Privacy setting */}
+          <div className="p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {isPublic ? (
+                  <Globe size={20} className="text-green-600" />
+                ) : (
+                  <Lock size={20} className="text-gray-500" />
+                )}
+                <div>
+                  <p className="text-sm font-medium text-gray-800">
+                    {isPublic ? 'Public Trip' : 'Private Trip'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {isPublic
+                      ? 'Anyone with the link can view this trip'
+                      : 'Only invited members can view this trip'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPublic(!isPublic)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  isPublic ? 'bg-green-500' : 'bg-gray-300'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    isPublic ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
           </div>
 
           {createError && (

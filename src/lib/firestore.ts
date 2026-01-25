@@ -55,7 +55,8 @@ export const createTrip = async (
   description: string,
   ownerId: string,
   ownerName: string,
-  coverImage?: string
+  coverImage?: string,
+  isPublic: boolean = false
 ): Promise<Trip> => {
   const tripId = uuidv4();
   const inviteCode = uuidv4().slice(0, 8).toUpperCase();
@@ -85,6 +86,7 @@ export const createTrip = async (
     status: 'ideation',
     invite_code: inviteCode,
     activities: [activity],
+    isPublic,
   };
 
   await setDoc(doc(db, TRIPS_COLLECTION, tripId), trip);
@@ -191,6 +193,12 @@ export const deleteTrip = async (tripId: string, userId: string): Promise<boolea
 export const updateTripCover = async (tripId: string, coverImageUrl: string): Promise<void> => {
   const tripRef = doc(db, TRIPS_COLLECTION, tripId);
   await updateDoc(tripRef, { cover_image: coverImageUrl });
+};
+
+// Update trip privacy
+export const updateTripPrivacy = async (tripId: string, isPublic: boolean): Promise<void> => {
+  const tripRef = doc(db, TRIPS_COLLECTION, tripId);
+  await updateDoc(tripRef, { isPublic });
 };
 
 // Update trip status

@@ -4,8 +4,12 @@ import { LoginPage } from './pages/LoginPage';
 import { TripsPage } from './pages/TripsPage';
 import { TripBoardPage } from './pages/TripBoardPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { AboutPage } from './pages/AboutPage';
 import { subscribeToAuthChanges } from './lib/auth';
 import { Map } from 'lucide-react';
+
+// Check if user has seen the onboarding
+const ONBOARDING_KEY = 'tripbord_onboarding_complete';
 
 // Parse invite code from URL path (e.g., /join/ABCD1234)
 function getInviteCodeFromUrl(): string | null {
@@ -35,13 +39,45 @@ function App() {
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
   const [joiningTrip, setJoiningTrip] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showAbout, setShowAbout] = useState(false);
+  const [isFirstVisit, setIsFirstVisit] = useState(false);
 
-  // Listen for profile navigation events
+  // Listen for navigation events
   useEffect(() => {
-    const handleShowProfile = () => setShowProfile(true);
+    const handleShowProfile = () => {
+      setShowProfile(true);
+      setShowAbout(false);
+    };
+    const handleShowAbout = () => {
+      setShowAbout(true);
+      setShowProfile(false);
+    };
+
     window.addEventListener('showProfile', handleShowProfile);
-    return () => window.removeEventListener('showProfile', handleShowProfile);
+    window.addEventListener('showAbout', handleShowAbout);
+
+    return () => {
+      window.removeEventListener('showProfile', handleShowProfile);
+      window.removeEventListener('showAbout', handleShowAbout);
+    };
   }, []);
+
+  // Check for first-time user after login
+  useEffect(() => {
+    if (currentUser && !isAuthLoading) {
+      const hasCompletedOnboarding = localStorage.getItem(ONBOARDING_KEY);
+      if (!hasCompletedOnboarding) {
+        setIsFirstVisit(true);
+        setShowAbout(true);
+      }
+    }
+  }, [currentUser, isAuthLoading]);
+
+  const handleOnboardingComplete = () => {
+    localStorage.setItem(ONBOARDING_KEY, 'true');
+    setIsFirstVisit(false);
+    setShowAbout(false);
+  };
 
   useEffect(() => {
     // Check for invite code in URL on mount
@@ -90,6 +126,16 @@ function App() {
   // Joining trip from invite link
   if (joiningTrip) {
     return <LoadingScreen />;
+  }
+
+  // Viewing About/How To page
+  if (showAbout) {
+    return (
+      <AboutPage
+        onBack={isFirstVisit ? handleOnboardingComplete : () => setShowAbout(false)}
+        isFirstVisit={isFirstVisit}
+      />
+    );
   }
 
   // Viewing profile

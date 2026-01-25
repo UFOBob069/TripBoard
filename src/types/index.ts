@@ -158,6 +158,7 @@ export interface Trip {
   status: TripStatus;
   invite_code: string;
   activities: Activity[];
+  isPublic?: boolean; // Default false - trips are private by default
 }
 
 export interface FinalPlan {

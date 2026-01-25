@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Map, LogOut, ChevronDown, User } from 'lucide-react';
+import { Map, LogOut, ChevronDown, User, HelpCircle } from 'lucide-react';
 import { useTripStore } from '../../store/tripStore';
 import { Avatar } from '../common/Avatar';
 import { signOut } from '../../lib/auth';
@@ -18,6 +18,10 @@ export function Header() {
     setShowUserMenu(false);
   };
 
+  const handleShowAbout = () => {
+    window.dispatchEvent(new Event('showAbout'));
+  };
+
   return (
     <header className="bg-white border-b border-gray-200 px-3 sm:px-6 py-3 sm:py-4">
       <div className="flex items-center justify-between max-w-7xl mx-auto">
@@ -32,56 +36,68 @@ export function Header() {
           </div>
         </div>
 
-        {/* User menu */}
-        {currentUser && (
-          <div className="relative">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Avatar user={currentUser} size="md" />
-              <span className="font-medium text-gray-700 hidden sm:block">{currentUser.name}</span>
-              <ChevronDown
-                size={16}
-                className={`text-gray-400 transition-transform hidden sm:block ${
-                  showUserMenu ? 'rotate-180' : ''
-                }`}
-              />
-            </button>
+        {/* Right side */}
+        <div className="flex items-center gap-2 sm:gap-4">
+          {/* About link */}
+          <button
+            onClick={handleShowAbout}
+            className="flex items-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-600 hover:text-primary-600 hover:bg-gray-50 rounded-lg transition-colors"
+          >
+            <HelpCircle size={18} />
+            <span className="hidden sm:inline text-sm font-medium">How It Works</span>
+          </button>
 
-            {showUserMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-40"
-                  onClick={() => setShowUserMenu(false)}
+          {/* User menu */}
+          {currentUser && (
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-2 sm:gap-3 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <Avatar user={currentUser} size="md" />
+                <span className="font-medium text-gray-700 hidden sm:block">{currentUser.name}</span>
+                <ChevronDown
+                  size={16}
+                  className={`text-gray-400 transition-transform hidden sm:block ${
+                    showUserMenu ? 'rotate-180' : ''
+                  }`}
                 />
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50">
-                  <div className="px-4 py-2 border-b border-gray-100">
-                    <p className="text-sm font-medium text-gray-800">{currentUser.name}</p>
-                    <p className="text-xs text-gray-500">{currentUser.email}</p>
+              </button>
+
+              {showUserMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowUserMenu(false)}
+                  />
+                  <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-xl shadow-lg border border-gray-100 py-2 z-50">
+                    <div className="px-4 py-2 border-b border-gray-100">
+                      <p className="text-sm font-medium text-gray-800">{currentUser.name}</p>
+                      <p className="text-xs text-gray-500">{currentUser.email}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        window.dispatchEvent(new Event('showProfile'));
+                        setShowUserMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50"
+                    >
+                      <User size={18} />
+                      My Profile
+                    </button>
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-red-50"
+                    >
+                      <LogOut size={18} />
+                      Sign Out
+                    </button>
                   </div>
-                  <button
-                    onClick={() => {
-                      window.dispatchEvent(new Event('showProfile'));
-                      setShowUserMenu(false);
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50"
-                  >
-                    <User size={18} />
-                    My Profile
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-red-50"
-                  >
-                    <LogOut size={18} />
-                    Sign Out
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

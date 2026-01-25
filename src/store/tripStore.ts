@@ -33,12 +33,13 @@ interface TripState {
   updateUserProfile: (profile: Partial<Pick<User, 'bio' | 'location' | 'favoriteDestination' | 'travelStyle'>>) => Promise<void>;
 
   // Trip actions
-  createTrip: (name: string, description: string, coverImage?: string) => Promise<Trip | null>;
+  createTrip: (name: string, description: string, coverImage?: string, isPublic?: boolean) => Promise<Trip | null>;
   joinTrip: (inviteCode: string) => Promise<Trip | null>;
   deleteTrip: (tripId: string) => Promise<boolean>;
   setActiveTrip: (tripId: string | null) => void;
   setActiveCanvas: (canvas: CanvasType) => void;
   updateTripStatus: (tripId: string, status: TripStatus) => Promise<void>;
+  updateTripPrivacy: (tripId: string, isPublic: boolean) => Promise<void>;
   subscribeToTrip: (tripId: string) => void;
   subscribeToUserTrips: () => void;
   unsubscribeFromTrip: (tripId: string) => void;
@@ -136,7 +137,7 @@ export const useTripStore = create<TripState>()((set, get) => ({
     // For now, this is stored in local state only
   },
 
-  createTrip: async (name, description, coverImage) => {
+  createTrip: async (name, description, coverImage, isPublic = false) => {
     const { currentUser } = get();
     if (!currentUser) return null;
 
@@ -146,7 +147,8 @@ export const useTripStore = create<TripState>()((set, get) => ({
         description,
         currentUser.id,
         currentUser.name,
-        coverImage
+        coverImage,
+        isPublic
       );
 
       set((state) => ({
@@ -161,6 +163,20 @@ export const useTripStore = create<TripState>()((set, get) => ({
     } catch (error) {
       console.error('Error creating trip:', error);
       return null;
+    }
+  },
+
+  updateTripPrivacy: async (tripId, isPublic) => {
+    try {
+      await firestoreService.updateTripPrivacy(tripId, isPublic);
+      set((state) => ({
+        trips: {
+          ...state.trips,
+          [tripId]: { ...state.trips[tripId], isPublic },
+        },
+      }));
+    } catch (error) {
+      console.error('Error updating trip privacy:', error);
     }
   },
 
