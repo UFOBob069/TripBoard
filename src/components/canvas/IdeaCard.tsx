@@ -8,8 +8,14 @@ import {
   ExternalLink,
   Crown,
   Star,
+  Plane,
+  Car,
+  Train,
+  Bus,
+  Ship,
+  DollarSign,
 } from 'lucide-react';
-import type { Idea, User } from '../../types';
+import type { Idea, User, TransportationMetadata } from '../../types';
 import { useTripStore } from '../../store/tripStore';
 import { Avatar } from '../common/Avatar';
 import { formatDistanceToNow } from 'date-fns';
@@ -20,6 +26,16 @@ interface IdeaCardProps {
   users: Record<string, User>;
   onOpenDetail: (idea: Idea) => void;
 }
+
+// Transportation type config
+const TRANSPORT_CONFIG = {
+  flight: { icon: Plane, label: 'Flight', color: 'bg-cyan-500' },
+  car: { icon: Car, label: 'Car', color: 'bg-blue-500' },
+  train: { icon: Train, label: 'Train', color: 'bg-green-500' },
+  bus: { icon: Bus, label: 'Bus', color: 'bg-orange-500' },
+  ferry: { icon: Ship, label: 'Ferry', color: 'bg-indigo-500' },
+  other: { icon: Car, label: 'Other', color: 'bg-gray-500' },
+} as const;
 
 export function IdeaCard({ idea, users, onOpenDetail }: IdeaCardProps) {
   const [showComments, setShowComments] = useState(false);
@@ -143,6 +159,34 @@ export function IdeaCard({ idea, users, onOpenDetail }: IdeaCardProps) {
             </a>
           )}
         </div>
+
+        {/* Transportation type badge and price */}
+        {idea.canvas_type === 'transportation' && idea.metadata && (
+          <div className="flex items-center gap-2 mb-2">
+            {(() => {
+              const meta = idea.metadata as TransportationMetadata;
+              const config = TRANSPORT_CONFIG[meta.type || 'other'];
+              const TransportIcon = config.icon;
+              return (
+                <>
+                  <span className={`inline-flex items-center gap-1 px-2 py-0.5 ${config.color} text-white text-xs font-medium rounded-full`}>
+                    <TransportIcon size={12} />
+                    {config.label}
+                  </span>
+                  {meta.price && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                      <DollarSign size={12} />
+                      {meta.price.toLocaleString()}
+                    </span>
+                  )}
+                  {meta.carrier && (
+                    <span className="text-xs text-gray-500">{meta.carrier}</span>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        )}
 
         {/* Description */}
         {idea.description && (

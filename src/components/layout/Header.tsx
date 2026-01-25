@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Map, LogOut, ChevronDown } from 'lucide-react';
+import { Map, LogOut, ChevronDown, User } from 'lucide-react';
 import { useTripStore } from '../../store/tripStore';
 import { Avatar } from '../common/Avatar';
 import { signOut } from '../../lib/auth';
@@ -60,6 +60,16 @@ export function Header() {
                     <p className="text-sm font-medium text-gray-800">{currentUser.name}</p>
                     <p className="text-xs text-gray-500">{currentUser.email}</p>
                   </div>
+                  <button
+                    onClick={() => {
+                      window.dispatchEvent(new Event('showProfile'));
+                      setShowUserMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-4 py-2 text-gray-700 hover:bg-gray-50"
+                  >
+                    <User size={18} />
+                    My Profile
+                  </button>
                   <button
                     onClick={handleLogout}
                     className="w-full flex items-center gap-3 px-4 py-2 text-red-600 hover:bg-red-50"

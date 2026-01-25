@@ -91,13 +91,13 @@ const POPULAR_DESTINATIONS = [
   { name: 'Los Angeles', country: 'USA', image: 'https://images.unsplash.com/photo-1534190760961-74e8c1c5c3da?w=800' },
 ];
 
-// Transportation types with icons
+// Transportation types with icons and default images
 const TRANSPORTATION_TYPES = [
-  { type: 'flight', label: 'Flight', icon: Plane, color: 'bg-cyan-500' },
-  { type: 'car', label: 'Car / Rental', icon: Car, color: 'bg-blue-500' },
-  { type: 'train', label: 'Train', icon: Train, color: 'bg-green-500' },
-  { type: 'bus', label: 'Bus', icon: Bus, color: 'bg-orange-500' },
-  { type: 'ferry', label: 'Ferry / Boat', icon: Ship, color: 'bg-indigo-500' },
+  { type: 'flight', label: 'Flight', icon: Plane, color: 'bg-cyan-500', image: 'https://images.unsplash.com/photo-1436491865332-7a61a109cc05?w=400' },
+  { type: 'car', label: 'Car / Rental', icon: Car, color: 'bg-blue-500', image: 'https://images.unsplash.com/photo-1449965408869-euj3aae14ed2?w=400' },
+  { type: 'train', label: 'Train', icon: Train, color: 'bg-green-500', image: 'https://images.unsplash.com/photo-1474487548417-781cb71495f3?w=400' },
+  { type: 'bus', label: 'Bus', icon: Bus, color: 'bg-orange-500', image: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=400' },
+  { type: 'ferry', label: 'Ferry / Boat', icon: Ship, color: 'bg-indigo-500', image: 'https://images.unsplash.com/photo-1534190760961-74e8c1c5c3da?w=400' },
 ] as const;
 
 interface MapboxFeature {
@@ -195,44 +195,20 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
     d.country.toLowerCase().includes(citySearch.toLowerCase())
   );
 
-  const handleCitySelect = async (cityName: string, placeName?: string) => {
+  const handleCitySelect = (cityName: string, placeName?: string) => {
     setTitle(placeName || cityName);
     setCitySearch(cityName);
     setShowCitySuggestions(false);
-    setIsLoading(true);
 
-    // Check popular destinations first for reliable images
+    // Check popular destinations for a quick image (no API calls)
     const popularCity = POPULAR_DESTINATIONS.find(
       (d) => d.name.toLowerCase() === cityName.toLowerCase()
     );
 
     if (popularCity) {
       setImageUrl(popularCity.image);
-      setIsLoading(false);
-      return;
     }
-
-    // Try Teleport API for city photos
-    try {
-      const slug = cityName.toLowerCase().replace(/\s+/g, '-');
-      const teleportResponse = await fetch(
-        `https://api.teleport.org/api/urban_areas/slug:${slug}/images/`
-      );
-      if (teleportResponse.ok) {
-        const data = await teleportResponse.json();
-        if (data.photos?.[0]?.image?.web) {
-          setImageUrl(data.photos[0].image.web);
-          setIsLoading(false);
-          return;
-        }
-      }
-    } catch {
-      // Continue to Unsplash fallback
-    }
-
-    // Unsplash fallback - use a generic city image
-    setImageUrl(`https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=800&q=80`);
-    setIsLoading(false);
+    // Otherwise leave image blank - user can add their own
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -288,15 +264,20 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
           price: price ? parseFloat(price) : undefined,
         };
 
+        // Get default image for transportation type if no custom image
+        const transportTypeConfig = TRANSPORTATION_TYPES.find(t => t.type === transportationType);
+        const finalImageUrl = imageUrl || transportTypeConfig?.image;
+
         const fullDescription = [
           description.trim(),
           itemDate ? `📅 ${new Date(itemDate).toLocaleDateString()}` : '',
+          price ? `💰 $${parseFloat(price).toLocaleString()}` : '',
         ].filter(Boolean).join('\n');
 
         await addIdea(tripId, canvasType, {
           title: title.trim(),
           ...(fullDescription && { description: fullDescription }),
-          ...(imageUrl && { image_url: imageUrl }),
+          ...(finalImageUrl && { image_url: finalImageUrl }),
           ...(linkUrl && { link_url: linkUrl }),
           created_by: currentUser.id,
           metadata: transportMetadata,
@@ -550,18 +531,75 @@ export function AddIdeaModal({ isOpen, onClose, tripId, canvasType }: AddIdeaMod
                 </div>
               )}
 
-              {imageUrl && (
-                <div className="relative h-32 rounded-lg overflow-hidden">
-                  <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={clearImage}
-                    className="absolute top-2 right-2 p-1 bg-black/50 text-white rounded-full hover:bg-black/70"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
+              {/* Destination Image - optional with upload/URL */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <ImageIcon size={14} className="inline mr-1" />
+                  Destination Photo (optional)
+                </label>
+
+                {imageUrl ? (
+                  <div className="relative h-32 rounded-lg overflow-hidden">
+                    <img src={imageUrl} alt={title} className="w-full h-full object-cover" />
+                    <div className="absolute top-2 right-2 flex gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowManualImageInput(true)}
+                        className="p-1 bg-black/50 text-white rounded-full hover:bg-black/70"
+                        title="Change image"
+                      >
+                        <ImageIcon size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={clearImage}
+                        className="p-1 bg-black/50 text-white rounded-full hover:bg-black/70"
+                        title="Remove image"
+                      >
+                        <X size={12} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowManualImageInput(true)}
+                      className="flex-1 py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-primary-400 hover:text-primary-500 text-sm flex items-center justify-center gap-2"
+                    >
+                      <Link size={16} />
+                      Add image URL
+                    </button>
+                  </div>
+                )}
+
+                {showManualImageInput && (
+                  <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Enter Image URL
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={manualImageUrl}
+                        onChange={(e) => setManualImageUrl(e.target.value)}
+                        className="input-field flex-1"
+                        placeholder="https://example.com/destination.jpg"
+                        autoFocus
+                      />
+                      <button type="button" onClick={handleManualImageSubmit} className="btn-primary text-sm">
+                        Set
+                      </button>
+                      <button type="button" onClick={() => setShowManualImageInput(false)} className="btn-secondary text-sm">
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Tip: Search Google Images for your destination, right-click → Copy image address
+                    </p>
+                  </div>
+                )}
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

@@ -3,6 +3,7 @@ import { useTripStore } from './store/tripStore';
 import { LoginPage } from './pages/LoginPage';
 import { TripsPage } from './pages/TripsPage';
 import { TripBoardPage } from './pages/TripBoardPage';
+import { ProfilePage } from './pages/ProfilePage';
 import { subscribeToAuthChanges } from './lib/auth';
 import { Map } from 'lucide-react';
 
@@ -33,6 +34,14 @@ function App() {
   const { currentUser, isAuthLoading, activeTripId, setCurrentUser, setAuthLoading, joinTrip } = useTripStore();
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
   const [joiningTrip, setJoiningTrip] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
+
+  // Listen for profile navigation events
+  useEffect(() => {
+    const handleShowProfile = () => setShowProfile(true);
+    window.addEventListener('showProfile', handleShowProfile);
+    return () => window.removeEventListener('showProfile', handleShowProfile);
+  }, []);
 
   useEffect(() => {
     // Check for invite code in URL on mount
@@ -81,6 +90,11 @@ function App() {
   // Joining trip from invite link
   if (joiningTrip) {
     return <LoadingScreen />;
+  }
+
+  // Viewing profile
+  if (showProfile) {
+    return <ProfilePage onBack={() => setShowProfile(false)} />;
   }
 
   // Logged in, viewing a specific trip

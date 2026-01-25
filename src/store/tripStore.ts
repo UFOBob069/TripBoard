@@ -30,6 +30,7 @@ interface TripState {
   setCurrentUser: (user: User | null) => void;
   setAuthLoading: (loading: boolean) => void;
   addUser: (user: User) => void;
+  updateUserProfile: (profile: Partial<Pick<User, 'bio' | 'location' | 'favoriteDestination' | 'travelStyle'>>) => Promise<void>;
 
   // Trip actions
   createTrip: (name: string, description: string, coverImage?: string) => Promise<Trip | null>;
@@ -114,6 +115,25 @@ export const useTripStore = create<TripState>()((set, get) => ({
     set((state) => ({
       users: { ...state.users, [user.id]: user },
     }));
+  },
+
+  updateUserProfile: async (profile) => {
+    const { currentUser } = get();
+    if (!currentUser) return;
+
+    const updatedUser = {
+      ...currentUser,
+      ...profile,
+    };
+
+    // Update local state
+    set((state) => ({
+      currentUser: updatedUser,
+      users: { ...state.users, [updatedUser.id]: updatedUser },
+    }));
+
+    // Note: In a real app, you'd also persist this to Firestore
+    // For now, this is stored in local state only
   },
 
   createTrip: async (name, description, coverImage) => {

@@ -25,6 +25,11 @@ export interface User {
   email: string;
   avatar: string;
   color: string;
+  // Optional profile fields
+  bio?: string;
+  location?: string;
+  favoriteDestination?: string;
+  travelStyle?: string;
 }
 
 export interface TripMember {
