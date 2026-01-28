@@ -207,56 +207,58 @@ export function TripBoardPage() {
         </div>
       </div>
 
-      {/* Board tabs - horizontal, centered */}
-      <div className="bg-white border-b border-gray-200 overflow-x-auto">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="relative flex items-center justify-center py-2">
-            {/* Centered tabs */}
-            <div className="flex items-center gap-1">
-              {canvasTypes.map((canvas) => {
-                const config = CANVAS_CONFIG[canvas];
-                const Icon = ICON_MAP[config.icon as keyof typeof ICON_MAP];
-                const status = getCanvasStatus(canvas);
-                const isActive = !showFinalPlan && activeCanvas === canvas;
+      {/* Board tabs - horizontal scrollable on mobile */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-2 sm:px-4">
+          <div className="flex items-center justify-between py-2 gap-2">
+            {/* Scrollable tabs container */}
+            <div className="flex-1 overflow-x-auto scrollbar-hide">
+              <div className="flex items-center gap-1 min-w-max px-1">
+                {canvasTypes.map((canvas) => {
+                  const config = CANVAS_CONFIG[canvas];
+                  const Icon = ICON_MAP[config.icon as keyof typeof ICON_MAP];
+                  const status = getCanvasStatus(canvas);
+                  const isActive = !showFinalPlan && activeCanvas === canvas;
 
-                return (
-                  <button
-                    key={canvas}
-                    onClick={() => handleNavigateToBoard(canvas)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all whitespace-nowrap ${
-                      isActive
-                        ? 'bg-primary-50 text-primary-700'
-                        : 'text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div
-                      className={`p-1.5 rounded-lg ${
-                        isActive ? config.color : 'bg-gray-100'
+                  return (
+                    <button
+                      key={canvas}
+                      onClick={() => handleNavigateToBoard(canvas)}
+                      className={`flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 rounded-lg transition-all whitespace-nowrap ${
+                        isActive
+                          ? 'bg-primary-50 text-primary-700'
+                          : 'text-gray-600 hover:bg-gray-50'
                       }`}
                     >
-                      <Icon
-                        size={16}
-                        className={isActive ? 'text-white' : 'text-gray-500'}
-                      />
-                    </div>
-                    <span className="font-medium text-sm hidden sm:inline">{config.label}</span>
-                    <div className="flex items-center gap-1">
-                      {status.locked && (
-                        <Lock size={12} className="text-gray-400" />
-                      )}
-                      {status.selected && (
-                        <CheckCircle size={14} className="text-green-500" />
-                      )}
-                    </div>
-                  </button>
-                );
-              })}
+                      <div
+                        className={`p-1 sm:p-1.5 rounded-lg ${
+                          isActive ? config.color : 'bg-gray-100'
+                        }`}
+                      >
+                        <Icon
+                          size={14}
+                          className={`sm:w-4 sm:h-4 ${isActive ? 'text-white' : 'text-gray-500'}`}
+                        />
+                      </div>
+                      <span className="font-medium text-sm hidden sm:inline">{config.label}</span>
+                      <div className="flex items-center gap-0.5">
+                        {status.locked && (
+                          <Lock size={10} className="sm:w-3 sm:h-3 text-gray-400" />
+                        )}
+                        {status.selected && (
+                          <CheckCircle size={12} className="sm:w-3.5 sm:h-3.5 text-green-500" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Final Plan button - positioned right */}
+            {/* Final Plan button - always visible, flex-shrink-0 */}
             <button
               onClick={() => setShowFinalPlan(!showFinalPlan)}
-              className={`absolute right-0 flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+              className={`flex-shrink-0 flex items-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2 rounded-lg font-medium text-sm transition-all ${
                 showFinalPlan
                   ? 'bg-accent-500 text-white'
                   : allSelected
