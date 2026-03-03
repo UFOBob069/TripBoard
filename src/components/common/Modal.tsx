@@ -47,9 +47,9 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
       }}
     >
       <div
-        className={`bg-white rounded-2xl shadow-2xl w-full ${sizeClasses[size]} animate-slide-up`}
+        className={`bg-white rounded-2xl shadow-2xl w-full ${sizeClasses[size]} animate-slide-up flex flex-col max-h-[calc(100vh-2rem)]`}
       >
-        <div className="flex items-center justify-between p-4 border-b border-gray-100">
+        <div className="flex items-center justify-between p-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
           <button
             onClick={onClose}
@@ -58,7 +58,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'md' }: ModalPr
             <X size={20} />
           </button>
         </div>
-        <div className="p-4">{children}</div>
+        <div className="p-4 overflow-y-auto">{children}</div>
       </div>
     </div>
   );
